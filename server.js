@@ -44,7 +44,9 @@ app.get('/image/:id', (req, res) => {
   if (!img) return res.status(404).send('Not found');
   const isDashboard = req.query.dashboard === '1';
   if (!isDashboard) {
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    // 실제 클라이언트 IP만 저장
+    const ipRaw = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const ip = Array.isArray(ipRaw) ? ipRaw[0] : (ipRaw || '').split(',')[0].trim();
     img.views++;
     const now = getKSTString();
     let ipInfo = img.ips.find(x => x.ip === ip);
@@ -54,9 +56,14 @@ app.get('/image/:id', (req, res) => {
       ipInfo.count++;
       ipInfo.lastVisit = now;
     }
-    // Referer 트래킹
+    // 블로그 글 주소만 기록 (대시보드/이미지/내부 접근 등은 제외)
     const referer = req.headers['referer'] || '';
-    if (referer) {
+    if (
+      referer &&
+      !referer.includes('/dashboard') &&
+      !referer.includes('/image/') &&
+      !referer.includes('onrender.com')
+    ) {
       let refInfo = img.referers.find(x => x.referer === referer);
       if (!refInfo) {
         img.referers.push({ referer, count: 1, firstVisit: now, lastVisit: now });

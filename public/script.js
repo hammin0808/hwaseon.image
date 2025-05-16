@@ -75,7 +75,7 @@ if (document.getElementById('dashboard')) {
           <div class="dashboard-details">
             <div class='dashboard-url-row'><span class="dashboard-label">URL  </span><button class='dashboard-copy-btn' type='button' data-url='${fullUrl}'>복사</button></div>
             <div class="dashboard-meta" style='word-break:break-all;font-size:0.97em;margin:6px 0 0 0;'><a href='${fullUrl}' target='_blank' style='color:#1877f2;text-decoration:underline;'>${fullUrl}</a></div>
-            <div class="dashboard-meta"><span class="dashboard-label">블로그:</span> ${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;'>${mainReferer}</a>` : '<span style="color:#888;">기록 없음</span>'}</div>
+            <div class="dashboard-meta" style="align-items:center;gap:8px;word-break:break-all;"><span class="dashboard-label">블로그:</span> ${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;'>${mainReferer}</a>` : '<span style="color:#888;">기록 없음</span>'}</div>
             <div class="dashboard-meta"><span class="dashboard-label">메모:</span> ${img.memo}</div>
             <div class="dashboard-btn-row">
               <button class="dashboard-btn-sm dashboard-detail-btn" data-idx="${idx}">상세보기</button>
@@ -132,7 +132,7 @@ if (document.getElementById('dashboard')) {
             refTable = '<div style="color:#888;">블로그 기록 없음</div>';
           }
           document.getElementById('modal-body').innerHTML =
-            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>유니크 방문자:</span> <span class='stat-value'>${img.unique}</span></div>${ipTable}${refTable}`;
+            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${ipTable}${refTable}`;
           document.getElementById('modal').style.display = 'flex';
         };
       });
