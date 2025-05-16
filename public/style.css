@@ -159,8 +159,8 @@ button:hover, .dashboard-btn:hover {
   white-space: normal;
 }
 .copy-btn {
-  width: 50px;
-  height: 24px;
+  width: 64px;
+  height: 30px;
   padding: 0;
   background: linear-gradient(90deg, #2563eb 0%, #1877f2 100%);
   color: #fff;

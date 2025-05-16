@@ -68,7 +68,7 @@ if (document.getElementById('dashboard')) {
         let mainReferer = '';
         if (img.referers && img.referers.length > 0) {
           // 실제 블로그 글 주소만 필터링 (작성/에디터/미리보기 등 제외)
-          const realReferers = img.referers.filter(ref => !/\/(write|edit|compose|admin|preview)/.test(ref.referer));
+          const realReferers = img.referers.filter(ref => !/\/(write|postwrite|edit|compose|admin|preview)/.test(ref.referer));
           if (realReferers.length > 0) {
             mainReferer = realReferers.slice().sort((a,b)=>b.count-a.count)[0].referer;
           }
@@ -126,12 +126,34 @@ if (document.getElementById('dashboard')) {
           } else {
             ipTable = '<div style="color:#888;">방문 기록 없음</div>';
           }
-          // referer 표
+          // referer 표 (상세보기)
           let refTable = '';
           if (img.referers && img.referers.length > 0) {
-            refTable = `<table style='margin-top:18px;'>\n<tr><th>블로그 주소</th><th>방문수</th><th>최초</th><th>최신</th></tr>` +
-              img.referers.map(ref => `<tr><td style='word-break:break-all;'><a href='${ref.referer}' target='_blank' style='color:#3575e1;text-decoration:underline;'>${ref.referer}</a></td><td>${ref.count}</td><td class='date-cell'>${formatDate(ref.firstVisit)}</td><td class='date-cell'>${formatDate(ref.lastVisit)}</td></tr>`).join('') +
-              '</table>';
+            // 실제 글 주소만 필터링 (작성탭/에디터/미리보기 등 제외)
+            const realReferers = img.referers.filter(ref => !/\/(write|postwrite|edit|compose|admin|preview)/.test(ref.referer));
+            if (realReferers.length > 0) {
+              refTable = `<table style='margin-top:18px;table-layout:fixed;width:100%;'>\n<tr>
+                <th style="width:55%;">블로그 주소</th>
+                <th style="width:10%;">방문수</th>
+                <th style="width:17%;">최초</th>
+                <th style="width:17%;">최신</th>
+              </tr>` +
+                realReferers.map(ref => `
+                  <tr>
+                    <td style='word-break:break-all;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>
+                      <a href='${ref.referer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;' title='${ref.referer}'>
+                        ${ref.referer}
+                      </a>
+                    </td>
+                    <td>${ref.count}</td>
+                    <td class='date-cell'>${formatDate(ref.firstVisit)}</td>
+                    <td class='date-cell'>${formatDate(ref.lastVisit)}</td>
+                  </tr>
+                `).join('') +
+                '</table>';
+            } else {
+              refTable = '<div style="color:#888;">블로그 기록 없음</div>';
+            }
           } else {
             refTable = '<div style="color:#888;">블로그 기록 없음</div>';
           }
