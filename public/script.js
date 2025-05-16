@@ -173,7 +173,7 @@ if (document.getElementById('dashboard')) {
           }
 
           document.getElementById('modal-body').innerHTML =
-            `<div style='margin-top:18px;text-align:right;'><button id='excel-download-btn' style='padding:7px 18px;font-size:1.01em;background:#1877f2;color:#fff;border:none;border-radius:7px;cursor:pointer;'>엑셀 다운로드</button></div>
+            `<div style='margin-top:18px;margin-bottom:18px;text-align:right;'><button id='excel-download-btn' style='padding:7px 18px;font-size:1.01em;background:#1877f2;color:#fff;border:none;border-radius:7px;cursor:pointer;'>엑셀 다운로드</button></div>
             <div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}
             `;
           document.getElementById('modal').style.display = 'flex';

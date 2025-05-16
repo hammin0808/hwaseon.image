@@ -676,4 +676,23 @@ img {
 }
 .dashboard-label {
   vertical-align: middle;
+}
+
+#excel-download-btn {
+  width: auto;
+  min-width: 120px;
+  max-width: 220px;
+  display: block;
+  margin: 0 auto;
+  padding: 7px 18px;
+  font-size: 1.01em;
+  background: #1877f2;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+#excel-download-btn:hover {
+  background: #1456b8;
 } 
