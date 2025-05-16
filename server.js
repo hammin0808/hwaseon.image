@@ -24,6 +24,12 @@ function getKSTString() {
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
 }
 
+// uploads 폴더가 없으면 생성 (Render 등 클라우드 환경 대비)
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
 app.post('/upload', upload.single('image'), (req, res) => {
   const id = Date.now().toString();
   const { memo } = req.body;
