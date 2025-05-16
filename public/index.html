@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Hwaseon 이미지 업로드</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Hwaseon 이미지 업로드</h1>
+    <form id="uploadForm">
+      <label class="custom-file-upload">
+        <input type="file" name="image" id="imageInput" required>
+        <span class="upload-icon">📁</span>
+        <span class="upload-text">이미지를 선택하세요.</span>
+      </label>
+      <div id="preview" class="upload-preview" style="display:none;"></div>
+      <div class="input-group">
+        <input type="text" name="memo" placeholder="메모 입력" required>
+      </div>
+      <div id="result" class="result" style="display:none;"></div>
+      <button type="submit">업로드</button>
+    </form>
+    <button id="dashboardBtn" class="dashboard-btn">대시보드</button>
+  </div>
+  <div id="img-modal" class="img-modal" style="display:none;">
+    <div class="img-modal-content">
+      <img id="img-modal-img" src="" alt="미리보기">
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html> 

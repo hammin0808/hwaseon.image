@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>대시보드</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dashboard-section">
+    <h1>대시보드</h1>
+    <button onclick="location.href='index.html'" class="home-btn">홈으로</button>
+    <div id="dashboard" class="dashboard-grid"></div>
+  </div>
+  <div id="modal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <span id="modal-close" class="modal-close" style="cursor:pointer;float:right;font-size:1.5rem;">&times;</span>
+      <h2>상세 정보</h2>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+  <div id="img-modal" class="img-modal" style="display:none;">
+    <div class="img-modal-content">
+      <img id="img-modal-img" src="" alt="미리보기">
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html> 
