@@ -29,7 +29,16 @@ if (document.getElementById('uploadForm')) {
     }
     const urlText = `${location.origin}${data.url}`;
     resultDiv.innerHTML =
-      `<div class="result-box">${imgTag}<div class="result-info"><div class='result-url-row'><span class='result-url'><span style=\"color:#1877f2;font-weight:bold;\">URL  </span> <a href=\"${data.url}\" target=\"_blank\">${urlText}</a></span><button class='copy-btn' id='copy-url-btn' type='button'>복사</button></div><div class='result-memo'><span style=\"color:#1877f2;font-weight:bold;\">메모:</span> ${data.memo}</div></div></div>`;
+      `<div class="result-box" style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        ${imgTag}
+        <div class="result-info" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div class='result-url-row' style="margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+            <span class='result-url'><span style="color:#1877f2;font-weight:bold;">URL  </span> <a href="${data.url}" target="_blank">${urlText}</a></span>
+            <button class='copy-btn' id='copy-url-btn' type='button'>복사</button>
+          </div>
+          <div class='result-memo' style="margin-top:4px;"><span style="color:#1877f2;font-weight:bold;">메모:</span> ${data.memo}</div>
+        </div>
+      </div>`;
     resultDiv.style.display = '';
     // 복사 버튼 이벤트
     document.getElementById('copy-url-btn').onclick = function() {
@@ -79,9 +88,9 @@ if (document.getElementById('dashboard')) {
           <div class="dashboard-details">
             <div class='dashboard-url-row'><span class="dashboard-label">URL </span><button class='dashboard-copy-btn' type='button' data-url='${fullUrl}'>복사</button></div>
             <div class="dashboard-meta" style='word-break:break-all;font-size:0.97em;margin:6px 0 0 0;'><a href='${fullUrl}' target='_blank' style='color:#1877f2;text-decoration:underline;'>${fullUrl}</a></div>
-            <div class="dashboard-meta" style="align-items:center;gap:8px;word-break:break-all;white-space:normal;max-width:220px;">
+            <div class="dashboard-meta" style="align-items:center;gap:8px;max-width:220px;">
               <span class="dashboard-label">블로그</span>
-              ${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;word-break:break-all;white-space:normal;max-width:180px;'>${mainReferer}</a>` : '<span style="color:#aaa;">-</span>'}
+              ${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;vertical-align:middle;' title='${mainReferer}'>${mainReferer}</a>` : '<span style="color:#aaa;">-</span>'}
             </div>
             <div class="dashboard-meta"><span class="dashboard-label">메모:</span> ${img.memo}</div>
             <div class="dashboard-btn-row">
@@ -122,13 +131,12 @@ if (document.getElementById('dashboard')) {
             return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
           }
           let ipTable = '';
-          if (img.ips.length > 0) {
-            ipTable = `<table>\n<tr><th>IP</th><th>방문수</th><th>최초</th><th>최신</th></tr>` +
-              img.ips.map(ipinfo => `<tr><td class='ip-cell'>${ipinfo.ip}</td><td>${ipinfo.count}</td><td class='date-cell'>${formatDate(ipinfo.firstVisit)}</td><td class='date-cell'>${formatDate(ipinfo.lastVisit)}</td></tr>`).join('') +
-              '</table>';
-          } else {
-            ipTable = '<div style="color:#888;">방문 기록 없음</div>';
-          }
+          
+          document.getElementById('modal-body').innerHTML =
+            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}`;
+          document.getElementById('modal').style.display = 'flex';
+          };
+
           // referer 표 (상세보기)
           let refTable = '';
           if (img.referers && img.referers.length > 0) {
@@ -160,10 +168,15 @@ if (document.getElementById('dashboard')) {
           } else {
             refTable = '<div style="color:#888;">블로그 기록 없음</div>';
           }
-          document.getElementById('modal-body').innerHTML =
-            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${ipTable}${refTable}`;
-          document.getElementById('modal').style.display = 'flex';
-        };
+
+          if (img.ips.length > 0) {
+            ipTable = `<table>\n<tr><th>IP</th><th>User-Agent</th><th>방문수</th><th>최초</th><th>최신</th></tr>` +
+              img.ips.map(ipinfo => `<tr><td class='ip-cell'>${ipinfo.ip}</td><td style='font-size:0.93em;word-break:break-all;color:#888;'>${ipinfo.ua || '-'}</td><td>${ipinfo.count}</td><td class='date-cell'>${formatDate(ipinfo.firstVisit)}</td><td class='date-cell'>${formatDate(ipinfo.lastVisit)}</td></tr>`).join('') +
+              '</table>';
+          } else {
+            ipTable = '<div style="color:#888;">방문 기록 없음</div>';
+          }
+          
       });
       // 이미지 미리보기 모달 이벤트
       document.querySelectorAll('.dashboard-img').forEach(imgEl => {
