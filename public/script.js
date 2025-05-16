@@ -173,8 +173,9 @@ if (document.getElementById('dashboard')) {
           }
 
           document.getElementById('modal-body').innerHTML =
-            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}
-            <div style='margin-top:18px;text-align:right;'><button id='excel-download-btn' style='padding:7px 18px;font-size:1.01em;background:#1877f2;color:#fff;border:none;border-radius:7px;cursor:pointer;'>엑셀 다운로드</button></div>`;
+            `<div style='margin-top:18px;text-align:right;'><button id='excel-download-btn' style='padding:7px 18px;font-size:1.01em;background:#1877f2;color:#fff;border:none;border-radius:7px;cursor:pointer;'>엑셀 다운로드</button></div>
+            <div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}
+            `;
           document.getElementById('modal').style.display = 'flex';
 
           // 엑셀 다운로드 기능
@@ -217,12 +218,34 @@ if (document.getElementById('dashboard')) {
               }
               // 워크북 생성
               const wb = XLSX.utils.book_new();
+              // 스타일 함수
+              function styleHeader(ws, ncols) {
+                for (let c = 0; c < ncols; c++) {
+                  const cell = ws[XLSX.utils.encode_cell({r:0, c})];
+                  if (cell) {
+                    cell.s = {
+                      fill: { fgColor: { rgb: 'D1C4E9' } }, // 연보라
+                      font: { bold: true },
+                      alignment: { horizontal: 'center', vertical: 'center' }
+                    };
+                  }
+                }
+              }
+              // 블로그 시트
               if (blogRows.length > 0) {
-                const ws1 = XLSX.utils.json_to_sheet(blogRows);
+                const ws1 = XLSX.utils.json_to_sheet(blogRows, {cellStyles:true});
+                // 컬럼 너비 자동
+                const blogCols = Object.keys(blogRows[0]).map(k => ({ wch: Math.max(12, k.length+2, ...blogRows.map(r => (r[k]+'').length+2)) }));
+                ws1['!cols'] = blogCols;
+                styleHeader(ws1, blogCols.length);
                 XLSX.utils.book_append_sheet(wb, ws1, '블로그');
               }
+              // IP 시트
               if (ipRows.length > 0) {
-                const ws2 = XLSX.utils.json_to_sheet(ipRows);
+                const ws2 = XLSX.utils.json_to_sheet(ipRows, {cellStyles:true});
+                const ipCols = Object.keys(ipRows[0]).map(k => ({ wch: Math.max(12, k.length+2, ...ipRows.map(r => (r[k]+'').length+2)) }));
+                ws2['!cols'] = ipCols;
+                styleHeader(ws2, ipCols.length);
                 XLSX.utils.book_append_sheet(wb, ws2, 'IP');
               }
               XLSX.writeFile(wb, `상세정보_${img.filename || ''}.xlsx`);
