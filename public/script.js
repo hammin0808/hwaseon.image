@@ -130,13 +130,9 @@ if (document.getElementById('dashboard')) {
             const ss = String(d.getSeconds()).padStart(2, '0');
             return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
           }
-          let ipTable = '';
           
-          document.getElementById('modal-body').innerHTML =
-            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}`;
-          document.getElementById('modal').style.display = 'flex';
-          };
-
+          
+          
           // referer 표 (상세보기)
           let refTable = '';
           if (img.referers && img.referers.length > 0) {
@@ -169,6 +165,7 @@ if (document.getElementById('dashboard')) {
             refTable = '<div style="color:#888;">블로그 기록 없음</div>';
           }
 
+          let ipTable = '';
           if (img.ips.length > 0) {
             ipTable = `<table>\n<tr><th>IP</th><th>User-Agent</th><th>방문수</th><th>최초</th><th>최신</th></tr>` +
               img.ips.map(ipinfo => `<tr><td class='ip-cell'>${ipinfo.ip}</td><td style='font-size:0.93em;word-break:break-all;color:#888;'>${ipinfo.ua || '-'}</td><td>${ipinfo.count}</td><td class='date-cell'>${formatDate(ipinfo.firstVisit)}</td><td class='date-cell'>${formatDate(ipinfo.lastVisit)}</td></tr>`).join('') +
