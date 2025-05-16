@@ -89,8 +89,8 @@ if (document.getElementById('dashboard')) {
             <div class='dashboard-url-row'><span class="dashboard-label">URL </span><button class='dashboard-copy-btn' type='button' data-url='${fullUrl}'>복사</button></div>
             <div class="dashboard-meta" style='word-break:break-all;font-size:0.97em;margin:6px 0 0 0;'><a href='${fullUrl}' target='_blank' style='color:#1877f2;text-decoration:underline;'>${fullUrl}</a></div>
             <div class="dashboard-meta" style="align-items:center;gap:8px;max-width:220px;">
-              <span class="dashboard-label">블로그</span>
-              ${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;vertical-align:middle;' title='${mainReferer}'>${mainReferer}</a>` : '<span style="color:#aaa;">-</span>'}
+              <span class="dashboard-label">블로그</span></div>
+              <div>${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;vertical-align:middle;' title='${mainReferer}'>${mainReferer}</a>` : '<span style="color:#aaa;">-</span>'}
             </div>
             <div class="dashboard-meta"><span class="dashboard-label">메모:</span> ${img.memo}</div>
             <div class="dashboard-btn-row">
@@ -173,8 +173,61 @@ if (document.getElementById('dashboard')) {
           }
 
           document.getElementById('modal-body').innerHTML =
-            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}`;
+            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}
+            <div style='margin-top:18px;text-align:right;'><button id='excel-download-btn' style='padding:7px 18px;font-size:1.01em;background:#1877f2;color:#fff;border:none;border-radius:7px;cursor:pointer;'>엑셀 다운로드</button></div>`;
           document.getElementById('modal').style.display = 'flex';
+
+          // 엑셀 다운로드 기능
+          document.getElementById('excel-download-btn').onclick = function() {
+            // xlsx 라이브러리 로드
+            if (!window.XLSX) {
+              const script = document.createElement('script');
+              script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+              script.onload = () => downloadExcel();
+              document.body.appendChild(script);
+            } else {
+              downloadExcel();
+            }
+            function downloadExcel() {
+              // 블로그 표 데이터
+              const blogRows = [];
+              if (img.referers && img.referers.length > 0) {
+                const realReferers = img.referers.filter(ref => !/\/(write|postwrite|edit|compose|admin|preview)/.test(ref.referer));
+                realReferers.forEach(ref => {
+                  blogRows.push({
+                    '블로그 주소': ref.referer,
+                    '방문수': ref.count,
+                    '최초': formatDate(ref.firstVisit),
+                    '최신': formatDate(ref.lastVisit)
+                  });
+                });
+              }
+              // IP 표 데이터
+              const ipRows = [];
+              if (img.ips && img.ips.length > 0) {
+                img.ips.forEach(ipinfo => {
+                  ipRows.push({
+                    'IP': ipinfo.ip,
+                    'User-Agent': ipinfo.ua || '-',
+                    '방문수': ipinfo.count,
+                    '최초': formatDate(ipinfo.firstVisit),
+                    '최신': formatDate(ipinfo.lastVisit)
+                  });
+                });
+              }
+              // 워크북 생성
+              const wb = XLSX.utils.book_new();
+              if (blogRows.length > 0) {
+                const ws1 = XLSX.utils.json_to_sheet(blogRows);
+                XLSX.utils.book_append_sheet(wb, ws1, '블로그');
+              }
+              if (ipRows.length > 0) {
+                const ws2 = XLSX.utils.json_to_sheet(ipRows);
+                XLSX.utils.book_append_sheet(wb, ws2, 'IP');
+              }
+              XLSX.writeFile(wb, `상세정보_${img.filename || ''}.xlsx`);
+            }
+          };
         };
       });
       // 이미지 미리보기 모달 이벤트
