@@ -43,53 +43,56 @@ app.get('/image/:id', (req, res) => {
   const img = images.find(i => i.id === req.params.id);
   if (!img) return res.status(404).send('Not found');
   const isDashboard = req.query.dashboard === '1';
-  if (!isDashboard) {
-    // 네이버/포털 봇 IP 대역 및 User-Agent 패턴
-    const botIpPatterns = [
-      /^110\.93\.146\./,
-      /^220\.230\.168\./
-      // 필요시 추가
-    ];
-    const botUaPatterns = [
-      /Yeti/i,
-      /NaverBot/i,
-      /Daumoa/i,
-      /Googlebot/i,
-      /bingbot/i
-      // 필요시 추가
-    ];
-    // 실제 사람이 접속한 경우만 기록
-    const ipRaw = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    const ip = Array.isArray(ipRaw) ? ipRaw[0] : (ipRaw || '').split(',')[0].trim();
-    const ua = req.headers['user-agent'] || '';
-    const isBotIp = botIpPatterns.some(re => re.test(ip));
-    const isBotUa = botUaPatterns.some(re => re.test(ua));
-    if (!isBotIp && !isBotUa) {
+  const botIpPatterns = [
+    /^110\.93\.146\./,
+    /^220\.230\.168\./
+    // 필요시 추가
+  ];
+  const botUaPatterns = [
+    /Yeti/i,
+    /NaverBot/i,
+    /Daumoa/i,
+    /Googlebot/i,
+    /bingbot/i
+    // 필요시 추가
+  ];
+  const ipRaw = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const ip = Array.isArray(ipRaw) ? ipRaw[0] : (ipRaw || '').split(',')[0].trim();
+  const ua = req.headers['user-agent'] || '';
+  const isBotIp = botIpPatterns.some(re => re.test(ip));
+  const isBotUa = botUaPatterns.some(re => re.test(ua));
+  const referer = req.headers['referer'] || '';
+  const isRealBlog =
+    referer &&
+    !referer.includes('/dashboard') &&
+    !referer.includes('/image/') &&
+    !referer.includes('onrender.com') &&
+    !/\/(write|postwrite|edit|compose|admin|preview)/.test(referer);
+
+  if (!isDashboard && !isBotIp && !isBotUa && isRealBlog) {
+    const now = getKSTString();
+    let ipInfo = img.ips.find(x => x.ip === ip);
+    let shouldCount = true;
+    if (ipInfo) {
+      const last = new Date(ipInfo.lastVisit.replace(/-/g, '/'));
+      const curr = new Date(now.replace(/-/g, '/'));
+      const diffSec = (curr - last) / 1000;
+      if (diffSec < 60) shouldCount = false;
+    }
+    if (shouldCount) {
       img.views++;
-      const now = getKSTString();
-      let ipInfo = img.ips.find(x => x.ip === ip);
       if (!ipInfo) {
         img.ips.push({ ip, count: 1, firstVisit: now, lastVisit: now });
       } else {
         ipInfo.count++;
         ipInfo.lastVisit = now;
       }
-      // 블로그 글 주소만 기록 (대시보드/이미지/내부 접근 등은 제외)
-      const referer = req.headers['referer'] || '';
-      if (
-        referer &&
-        !referer.includes('/dashboard') &&
-        !referer.includes('/image/') &&
-        !referer.includes('onrender.com') &&
-        !/\/(write|postwrite|edit|compose|admin|preview)/.test(referer)
-      ) {
-        let refInfo = img.referers.find(x => x.referer === referer);
-        if (!refInfo) {
-          img.referers.push({ referer, count: 1, firstVisit: now, lastVisit: now });
-        } else {
-          refInfo.count++;
-          refInfo.lastVisit = now;
-        }
+      let refInfo = img.referers.find(x => x.referer === referer);
+      if (!refInfo) {
+        img.referers.push({ referer, count: 1, firstVisit: now, lastVisit: now });
+      } else {
+        refInfo.count++;
+        refInfo.lastVisit = now;
       }
     }
   }
