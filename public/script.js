@@ -234,8 +234,8 @@ if (document.getElementById('dashboard')) {
               // 블로그 시트
               if (blogRows.length > 0) {
                 const ws1 = XLSX.utils.json_to_sheet(blogRows, {cellStyles:true});
-                // 컬럼 너비 자동
-                const blogCols = Object.keys(blogRows[0]).map(k => ({ wch: Math.max(12, k.length+2, ...blogRows.map(r => (r[k]+'').length+2)) }));
+                // 블로그 주소 컬럼만 wch:40, 나머지는 자동
+                const blogCols = Object.keys(blogRows[0]).map(k => k === '블로그 주소' ? { wch: 40 } : { wch: Math.max(12, k.length+2, ...blogRows.map(r => (r[k]+'').length+2)) });
                 ws1['!cols'] = blogCols;
                 styleHeader(ws1, blogCols.length);
                 XLSX.utils.book_append_sheet(wb, ws1, '블로그');
@@ -243,7 +243,8 @@ if (document.getElementById('dashboard')) {
               // IP 시트
               if (ipRows.length > 0) {
                 const ws2 = XLSX.utils.json_to_sheet(ipRows, {cellStyles:true});
-                const ipCols = Object.keys(ipRows[0]).map(k => ({ wch: Math.max(12, k.length+2, ...ipRows.map(r => (r[k]+'').length+2)) }));
+                // User-Agent 컬럼만 wch:30, 나머지는 자동
+                const ipCols = Object.keys(ipRows[0]).map(k => k === 'User-Agent' ? { wch: 30 } : { wch: Math.max(12, k.length+2, ...ipRows.map(r => (r[k]+'').length+2)) });
                 ws2['!cols'] = ipCols;
                 styleHeader(ws2, ipCols.length);
                 XLSX.utils.book_append_sheet(wb, ws2, 'IP');
