@@ -133,15 +133,15 @@ if (document.getElementById('dashboard')) {
             const realReferers = img.referers.filter(ref => !/\/(write|postwrite|edit|compose|admin|preview)/.test(ref.referer));
             if (realReferers.length > 0) {
               refTable = `<table style='margin-top:18px;table-layout:fixed;width:100%;'>\n<tr>
-                <th style="width:55%;">블로그 주소</th>
-                <th style="width:10%;">방문수</th>
-                <th style="width:17%;">최초</th>
-                <th style="width:17%;">최신</th>
+                <th style="width:55%">블로그 주소</th>
+                <th style="width:10%">방문수</th>
+                <th style="width:17%">최초</th>
+                <th style="width:17%">최신</th>
               </tr>` +
                 realReferers.map(ref => `
                   <tr>
-                    <td style='word-break:break-all;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>
-                      <a href='${ref.referer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;' title='${ref.referer}'>
+                    <td style='word-break:break-all;white-space:normal;max-width:420px;max-height:3.6em;overflow-y:auto;'>
+                      <a href='${ref.referer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;word-break:break-all;white-space:normal;vertical-align:middle;max-width:400px;'>
                         ${ref.referer}
                       </a>
                     </td>
