@@ -70,6 +70,8 @@ if (document.getElementById('dashboard')) {
   fetch('/dashboard-data')
     .then(res => res.json())
     .then(data => {
+      // id(숫자) 기준 내림차순 정렬(최신이 위로)
+      data.sort((a, b) => Number(b.url.match(/(\\d+)/)[0]) - Number(a.url.match(/(\\d+)/)[0]));
       document.getElementById('dashboard').innerHTML = data.map((img, idx) => {
         const fullUrl = `${location.origin}${img.url}`;
         const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
