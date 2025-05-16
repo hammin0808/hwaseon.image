@@ -64,18 +64,22 @@ if (document.getElementById('dashboard')) {
       document.getElementById('dashboard').innerHTML = data.map((img, idx) => {
         const fullUrl = `${location.origin}${img.url}`;
         const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
-        // 블로그(가장 많이 불러간 referer)
+        // 블로그(가장 많이 불러간 referer, 실제 글 주소만)
         let mainReferer = '';
         if (img.referers && img.referers.length > 0) {
-          mainReferer = img.referers.slice().sort((a,b)=>b.count-a.count)[0].referer;
+          // 실제 블로그 글 주소만 필터링 (작성/에디터/미리보기 등 제외)
+          const realReferers = img.referers.filter(ref => !/\/(write|edit|compose|admin|preview)/.test(ref.referer));
+          if (realReferers.length > 0) {
+            mainReferer = realReferers.slice().sort((a,b)=>b.count-a.count)[0].referer;
+          }
         }
         return `
         <div class="dashboard-info" data-id="${img.url.split('/').pop()}">
           <img src="${thumbUrl}" alt="img" class="dashboard-img" data-img-url="${thumbUrl}">
           <div class="dashboard-details">
-            <div class='dashboard-url-row'><span class="dashboard-label">URL  </span><button class='dashboard-copy-btn' type='button' data-url='${fullUrl}'>복사</button></div>
+            <div class='dashboard-url-row'><span class="dashboard-label">URL </span><button class='dashboard-copy-btn' type='button' data-url='${fullUrl}'>복사</button></div>
             <div class="dashboard-meta" style='word-break:break-all;font-size:0.97em;margin:6px 0 0 0;'><a href='${fullUrl}' target='_blank' style='color:#1877f2;text-decoration:underline;'>${fullUrl}</a></div>
-            <div class="dashboard-meta" style="align-items:center;gap:8px;word-break:break-all;"><span class="dashboard-label">블로그:</span> ${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;'>${mainReferer}</a>` : '<span style="color:#888;">기록 없음</span>'}</div>
+            <div class="dashboard-meta" style="align-items:center;gap:8px;word-break:break-all;"><span class="dashboard-label">블로그 </span></div> <div>${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;'>${mainReferer}</a>` : '<span style="color:#888;">기록 없음</span>'}</div>
             <div class="dashboard-meta"><span class="dashboard-label">메모:</span> ${img.memo}</div>
             <div class="dashboard-btn-row">
               <button class="dashboard-btn-sm dashboard-detail-btn" data-idx="${idx}">상세보기</button>
