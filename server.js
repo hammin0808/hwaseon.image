@@ -69,9 +69,12 @@ app.get('/image/:id', (req, res) => {
     !referer.includes('onrender.com') &&
     !/\/(write|postwrite|edit|compose|admin|preview)/.test(referer);
 
+  // IP + User-Agent 조합으로 방문자 구분
+  const visitorKey = ip + '|' + ua;
+
   if (!isDashboard && !isBotIp && !isBotUa && isRealBlog) {
     const now = getKSTString();
-    let ipInfo = img.ips.find(x => x.ip === ip);
+    let ipInfo = img.ips.find(x => x.visitorKey === visitorKey);
     let shouldCount = true;
     if (ipInfo) {
       const last = new Date(ipInfo.lastVisit.replace(/-/g, '/'));
@@ -82,7 +85,7 @@ app.get('/image/:id', (req, res) => {
     if (shouldCount) {
       img.views++;
       if (!ipInfo) {
-        img.ips.push({ ip, count: 1, firstVisit: now, lastVisit: now });
+        img.ips.push({ ip, ua, visitorKey, count: 1, firstVisit: now, lastVisit: now });
       } else {
         ipInfo.count++;
         ipInfo.lastVisit = now;
