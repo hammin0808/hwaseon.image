@@ -131,8 +131,6 @@ if (document.getElementById('dashboard')) {
             return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
           }
           
-          
-          
           // referer 표 (상세보기)
           let refTable = '';
           if (img.referers && img.referers.length > 0) {
@@ -173,7 +171,11 @@ if (document.getElementById('dashboard')) {
           } else {
             ipTable = '<div style="color:#888;">방문 기록 없음</div>';
           }
-          
+
+          document.getElementById('modal-body').innerHTML =
+            `<div style='margin-bottom:10px;'><span class='stat-label'>전체 조회수:</span> <span class='stat-value'>${img.views}</span></div><div style='margin-bottom:10px;'><span class='stat-label'>방문자:</span> <span class='stat-value'>${img.unique}</span></div>${refTable}${ipTable}`;
+          document.getElementById('modal').style.display = 'flex';
+        };
       });
       // 이미지 미리보기 모달 이벤트
       document.querySelectorAll('.dashboard-img').forEach(imgEl => {
