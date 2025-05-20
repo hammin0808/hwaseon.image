@@ -8,8 +8,30 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
+const DATA_DIR = '/data';
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
+
+// /data/uploads 폴더가 없으면 생성
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// images.json에서 데이터 복원
+let images = [];
+if (fs.existsSync(IMAGES_JSON)) {
+  try {
+    images = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf-8'));
+  } catch (e) {
+    images = [];
+  }
+}
+function saveImages() {
+  fs.writeFileSync(IMAGES_JSON, JSON.stringify(images, null, 2));
+}
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, Date.now() + ext);
@@ -17,17 +39,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-let images = []; // {id, filename, memo, views, ips: [{ip, count, firstVisit, lastVisit}], referers: [{referer, count, firstVisit, lastVisit}]}
-
 function getKSTString() {
   const now = new Date();
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
-}
-
-// uploads 폴더가 없으면 생성 (Render 등 클라우드 환경 대비)
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
 }
 
 app.post('/upload', upload.single('image'), (req, res) => {
@@ -35,6 +49,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
   const { memo } = req.body;
   const filename = req.file.filename;
   images.push({ id, filename, memo, views: 0, ips: [], referers: [] });
+  saveImages();
   const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}`;
   res.json({ url: imageUrl, memo });
 });
@@ -107,7 +122,7 @@ app.get('/image/:id', (req, res) => {
   else if (ext === '.gif') contentType = 'image/gif';
   else if (ext === '.webp') contentType = 'image/webp';
   res.set('Content-Type', contentType);
-  res.sendFile(path.join(__dirname, 'uploads', img.filename));
+  res.sendFile(path.join(UPLOADS_DIR, img.filename));
 });
 
 app.get('/dashboard-data', (req, res) => {
@@ -127,7 +142,8 @@ app.delete('/image/:id', (req, res) => {
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
   const filename = images[idx].filename;
   images.splice(idx, 1);
-  fs.unlink(path.join(__dirname, 'uploads', filename), () => {});
+  saveImages();
+  fs.unlink(path.join(UPLOADS_DIR, filename), () => {});
   res.json({ success: true });
 });
 
