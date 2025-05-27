@@ -48,14 +48,16 @@ app.post('/upload', upload.single('image'), (req, res) => {
   const id = Date.now().toString();
   const { memo } = req.body;
   const filename = req.file.filename;
+  const ext = path.extname(filename);
   images.push({ id, filename, memo, views: 0, ips: [], referers: [] });
   saveImages();
-  const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}`;
+  const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}${ext}`;
   res.json({ url: imageUrl, memo });
 });
 
 app.get('/image/:id', (req, res) => {
-  const img = images.find(i => i.id === req.params.id);
+  const id = req.params.id.split('.')[0]; // 확장자 제거
+  const img = images.find(i => i.id === id);
   if (!img) return res.status(404).send('Not found');
   const isDashboard = req.query.dashboard === '1';
   const botIpPatterns = [

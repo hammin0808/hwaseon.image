@@ -71,7 +71,11 @@ if (document.getElementById('dashboard')) {
     .then(res => res.json())
     .then(data => {
       // id(숫자) 기준 내림차순 정렬(최신이 위로)
-      data.sort((a, b) => Number(b.url.match(/(\\d+)/)[0]) - Number(a.url.match(/(\\d+)/)[0]));
+      data.sort((a, b) => {
+        const numA = a.url.match(/(\d+)/)?.[0] || '0';
+        const numB = b.url.match(/(\d+)/)?.[0] || '0';
+        return Number(numB) - Number(numA);
+      });
       document.getElementById('dashboard').innerHTML = data.map((img, idx) => {
         const fullUrl = `${location.origin}${img.url}`;
         const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
