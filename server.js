@@ -84,7 +84,7 @@ app.get('/image/:id', (req, res) => {
     !referer.includes('/dashboard') &&
     !referer.includes('/image/') &&
     !referer.includes('onrender.com') &&
-    !/\/(write|postwrite|edit|compose|admin|preview)/.test(referer);
+    !/\/(write|postwrite|edit|compose|admin|preview|PostWriteForm)/i.test(referer);
 
   // IP + User-Agent 조합으로 방문자 구분
   const visitorKey = ip + '|' + ua;
