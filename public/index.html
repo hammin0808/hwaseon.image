@@ -16,7 +16,11 @@
       </label>
       <div id="preview" class="upload-preview" style="display:none;"></div>
       <div class="input-group">
-        <input type="text" name="memo" placeholder="메모 입력" required>
+        <textarea name="memo" id="memoTextarea" placeholder="메모를 여러 줄로 입력하면 각각 생성됩니다." rows="4" style="resize:vertical;"></textarea>
+      </div>
+      <div class="input-group">
+        <label for="excelInput" style="font-weight:normal;">엑셀 업로드 (xlsx): </label>
+        <input type="file" id="excelInput" accept=".xlsx,.xls">
       </div>
       <div id="result" class="result" style="display:none;"></div>
       <button type="submit">업로드</button>

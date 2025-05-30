@@ -5,6 +5,37 @@ if (document.getElementById('uploadForm')) {
   const previewDiv = document.getElementById('preview');
   previewDiv.style.display = 'none';
   let previewUrl = '';
+  let excelData = null;
+  // 엑셀 업로드 핸들러
+  const excelInput = document.getElementById('excelInput');
+  if (excelInput) {
+    excelInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      // xlsx 라이브러리 동적 로드
+      if (!window.XLSX) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        script.onload = () => handleExcel(file);
+        document.body.appendChild(script);
+      } else {
+        handleExcel(file);
+      }
+      function handleExcel(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          // 첫 행이 헤더라고 가정, [이미지파일명, 메모] 형식
+          excelData = rows.slice(1).filter(r => r[0] && r[1]);
+          alert(`엑셀에서 ${excelData.length}개 항목을 읽었습니다. 업로드 버튼을 누르면 모두 업로드됩니다.`);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  }
   document.getElementById('imageInput').onchange = function(e) {
     const file = e.target.files[0];
     if (file) {
@@ -19,8 +50,48 @@ if (document.getElementById('uploadForm')) {
   };
   document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
     const file = document.getElementById('imageInput').files[0];
+    const memoTextarea = document.getElementById('memoTextarea');
+    const memos = memoTextarea.value.split('\n').map(s => s.trim()).filter(Boolean);
+    // 엑셀 업로드가 있으면 엑셀 우선
+    if (excelData && excelData.length > 0) {
+      // 엑셀의 각 행마다 업로드
+      let results = [];
+      for (const [imgName, memo] of excelData) {
+        if (!file) {
+          alert('엑셀 업로드는 이미지 파일을 선택해야 합니다. (같은 파일로 여러 메모 생성)');
+          return;
+        }
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('memo', memo);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        results.push({ url: data.url, memo: data.memo });
+      }
+      resultDiv.innerHTML = results.map(r => `<div><a href="${r.url}" target="_blank">${r.url}</a> <span style="color:#888;">${r.memo}</span></div>`).join('');
+      resultDiv.style.display = '';
+      excelData = null;
+      excelInput.value = '';
+      return;
+    }
+    // 여러 줄 메모 입력 시 각 줄마다 업로드
+    if (memos.length > 1) {
+      let results = [];
+      for (const memo of memos) {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('memo', memo);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        results.push({ url: data.url, memo: data.memo });
+      }
+      resultDiv.innerHTML = results.map(r => `<div><a href="${r.url}" target="_blank">${r.url}</a> <span style="color:#888;">${r.memo}</span></div>`).join('');
+      resultDiv.style.display = '';
+      return;
+    }
+    // 기본(단일) 업로드
+    const formData = new FormData(e.target);
     const res = await fetch('/upload', { method: 'POST', body: formData });
     const data = await res.json();
     let imgTag = '';
@@ -66,7 +137,7 @@ if (document.getElementById('dashboardBtn') && !document.getElementById('dashboa
   };
 }
 // dashboard.html
-if (document.getElementById('dashboard')) {
+if (document.getElementById('dashboard-tbody')) {
   fetch('/dashboard-data')
     .then(res => res.json())
     .then(data => {
@@ -76,47 +147,39 @@ if (document.getElementById('dashboard')) {
         const numB = b.url.match(/(\d+)/)?.[0] || '0';
         return Number(numB) - Number(numA);
       });
-      document.getElementById('dashboard').innerHTML = data.map((img, idx) => {
+      const tbody = document.getElementById('dashboard-tbody');
+      tbody.innerHTML = data.map((img, idx) => {
         const fullUrl = `${location.origin}${img.url}`;
         const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
-        // 블로그(가장 많이 불러간 referer, 실제 글 주소만)
         let mainReferer = '';
         if (img.referers && img.referers.length > 0) {
-          // 실제 블로그 글 주소만 필터링 (작성/에디터/미리보기 등 제외)
           const realReferers = img.referers.filter(ref => !/\/(write|edit|compose|admin|preview)/.test(ref.referer));
           if (realReferers.length > 0) {
             mainReferer = realReferers.slice().sort((a,b)=>b.count-a.count)[0].referer;
           }
         }
         return `
-        <div class="dashboard-info" data-id="${img.url.split('/').pop()}">
-          <img src="${thumbUrl}" alt="img" class="dashboard-img" data-img-url="${thumbUrl}">
-          <div class="dashboard-details">
-            <div class='dashboard-url-row'><span class="dashboard-label">URL </span><button class='dashboard-copy-btn' type='button' data-url='${fullUrl}'>복사</button></div>
-            <div class="dashboard-meta" style='word-break:break-all;font-size:0.97em;margin:6px 0 0 0;'><a href='${fullUrl}' target='_blank' style='color:#1877f2;text-decoration:underline;'>${fullUrl}</a></div>
-            <div class="dashboard-meta" style="align-items:center;gap:8px;max-width:220px;">
-              <span class="dashboard-label">블로그</span></div>
-              <div>${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;vertical-align:middle;' title='${mainReferer}'>${mainReferer}</a>` : '<span style="color:#aaa;">-</span>'}
-            </div>
-            <div class="dashboard-meta"><span class="dashboard-label">메모:</span> ${img.memo}</div>
-            <div class="dashboard-btn-row">
-              <button class="dashboard-btn-sm dashboard-detail-btn" data-idx="${idx}">상세보기</button>
-              <button class="dashboard-delete-btn">삭제</button>
-            </div>
-          </div>
-        </div>
-      `;
+          <tr class="dashboard-row" data-id="${img.url.split('/').pop()}">
+            <td><img src="${thumbUrl}" alt="img" class="dashboard-img" data-img-url="${thumbUrl}" style="max-width:60px;max-height:60px;"></td>
+            <td style="word-break:break-all;"><a href='${fullUrl}' target='_blank' style='color:#1877f2;text-decoration:underline;'>${fullUrl}</a></td>
+            <td>${img.memo || ''}</td>
+            <td>${img.createdAt ? new Date(img.createdAt).toLocaleString() : '-'}</td>
+            <td>${mainReferer ? `<a href='${mainReferer}' target='_blank' style='color:#3575e1;text-decoration:underline;'>${mainReferer}</a>` : '<span style="color:#aaa;">-</span>'}</td>
+            <td><button class="dashboard-btn-sm dashboard-detail-btn" data-idx="${idx}">상세보기</button></td>
+            <td><button class="dashboard-delete-btn">삭제</button></td>
+          </tr>
+        `;
       }).join('');
       // 삭제 버튼 이벤트
       document.querySelectorAll('.dashboard-delete-btn').forEach(btn => {
         btn.onclick = function(e) {
           e.stopPropagation();
-          const card = this.closest('.dashboard-info');
-          const id = card.getAttribute('data-id');
+          const row = this.closest('tr');
+          const id = row.getAttribute('data-id');
           if (confirm('정말 삭제하시겠습니까?')) {
             fetch(`/image/${id}`, { method: 'DELETE' })
               .then(res => res.json())
-              .then(r => { if (r.success) card.remove(); });
+              .then(r => { if (r.success) row.remove(); });
           }
         };
       });
@@ -289,6 +352,70 @@ if (document.getElementById('dashboard')) {
         if (e.target === this) this.style.display = 'none';
       };
     });
+  // 엑셀 다운로드 버튼 이벤트 핸들러 (추가 예정)
+  document.getElementById('excel-download-all').onclick = function() {
+    // xlsx 라이브러리 동적 로드
+    if (!window.XLSX) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.onload = () => downloadAllExcel();
+      document.body.appendChild(script);
+    } else {
+      downloadAllExcel();
+    }
+    function downloadAllExcel() {
+      // fetch로 다시 데이터 받아오기 (정렬 포함)
+      fetch('/dashboard-data')
+        .then(res => res.json())
+        .then(data => {
+          data.sort((a, b) => {
+            const numA = a.url.match(/(\d+)/)?.[0] || '0';
+            const numB = b.url.match(/(\d+)/)?.[0] || '0';
+            return Number(numB) - Number(numA);
+          });
+          // 엑셀용 데이터 가공
+          const rows = data.map(img => {
+            let mainReferer = '';
+            if (img.referers && img.referers.length > 0) {
+              const realReferers = img.referers.filter(ref => !/\/(write|edit|compose|admin|preview)/.test(ref.referer));
+              if (realReferers.length > 0) {
+                mainReferer = realReferers.slice().sort((a,b)=>b.count-a.count)[0].referer;
+              }
+            }
+            return {
+              '썸네일': `${location.origin}/image/${img.url.split('/').pop()}?dashboard=1`,
+              'URL': `${location.origin}${img.url}`,
+              '메모': img.memo || '',
+              '생성일': img.createdAt ? new Date(img.createdAt).toLocaleString() : '-',
+              '블로그(주요)': mainReferer,
+              '전체 조회수': img.views,
+              '고유 방문자': img.unique
+            };
+          });
+          const ws = XLSX.utils.json_to_sheet(rows);
+          // 썸네일 컬럼은 하이퍼링크로
+          for (let i = 2; i <= data.length+1; i++) {
+            const cell = ws[`A${i}`];
+            if (cell && cell.v) {
+              cell.l = { Target: cell.v };
+            }
+          }
+          // 컬럼 너비 지정
+          ws['!cols'] = [
+            { wch: 18 }, // 썸네일
+            { wch: 40 }, // URL
+            { wch: 20 }, // 메모
+            { wch: 20 }, // 생성일
+            { wch: 40 }, // 블로그
+            { wch: 12 }, // 전체 조회수
+            { wch: 12 }  // 고유 방문자
+          ];
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, '대시보드');
+          XLSX.writeFile(wb, `image-host-대시보드.xlsx`);
+        });
+    }
+  };
 }
 // 페이지 로드 시 이미지 미리보기 모달 닫기 이벤트 한 번만 등록
 if (document.readyState === 'loading') {
