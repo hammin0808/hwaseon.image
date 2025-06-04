@@ -92,8 +92,9 @@ app.use(session({
   saveUninitialized: true,
   cookie: { 
     maxAge: 1000 * 60 * 60 * 24,
-    secure: true,  // HTTPS에서만 쿠키 전송
-    sameSite: 'none'  // 크로스 사이트 요청 허용
+    secure: true,
+    sameSite: 'none',
+    domain: '.hwaseon-image.com'  // 도메인 설정 추가
   }
 }));
 
@@ -110,13 +111,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS 설정 추가
+// CORS 설정 수정
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Origin', req.headers.origin);
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  next();
+  res.header('Access-Control-Allow-Origin', 'https://hwaseon-image.com');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  
+  // OPTIONS 요청 처리
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
 });
 
 const storage = multer.diskStorage({
@@ -133,14 +140,16 @@ function getKSTString() {
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
 }
 
-// 로그인 체크 미들웨어
+// 로그인 체크 미들웨어 수정
 function requireLogin(req, res, next) {
   console.log('Login check:', {
     path: req.path,
     sessionID: req.sessionID,
     user: req.session.user,
-    headers: req.headers
+    headers: req.headers,
+    cookie: req.session.cookie
   });
+  
   if (!req.session.user) {
     console.log('Login required but no user in session');
     return res.status(401).json({ error: '로그인 필요' });
@@ -155,7 +164,8 @@ app.post('/login', (req, res) => {
     pw,
     usersFile: USERS_JSON,
     usersFileExists: fs.existsSync(USERS_JSON),
-    users: users
+    users: users,
+    sessionID: req.sessionID
   });
 
   try {
@@ -175,9 +185,21 @@ app.post('/login', (req, res) => {
       return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
     }
 
-    console.log('Login successful:', { id: user.id, role: user.role });
+    // 세션 설정
     req.session.user = { id: user.id, role: user.role };
-    res.json({ success: true, id: user.id, role: user.role });
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: '세션 저장 중 오류가 발생했습니다.' });
+      }
+      console.log('Login successful:', { 
+        id: user.id, 
+        role: user.role,
+        sessionID: req.sessionID,
+        cookie: req.session.cookie
+      });
+      res.json({ success: true, id: user.id, role: user.role });
+    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: '로그인 처리 중 오류가 발생했습니다.' });
@@ -201,7 +223,7 @@ app.post('/register', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/upload', requireLogin, upload.single('image'), (req, res) => {
+app.post('/upload', upload.single('image'), (req, res) => {
   let memos = req.body['memo[]'] || req.body.memo;
   if (!Array.isArray(memos)) memos = memos ? [memos] : [];
   if (!req.file || memos.length === 0) return res.status(400).json({ error: '이미지와 메모를 모두 입력하세요.' });
@@ -212,7 +234,16 @@ app.post('/upload', requireLogin, upload.single('image'), (req, res) => {
     const id = Date.now().toString() + Math.floor(Math.random()*100000).toString();
     const newFilename = id + ext;
     fs.copyFileSync(path.join(UPLOADS_DIR, req.file.filename), path.join(UPLOADS_DIR, newFilename));
-    images.push({ id, filename: newFilename, memo, views: 0, ips: [], referers: [], owner: req.session.user.id, createdAt: getKSTString() });
+    images.push({ 
+      id, 
+      filename: newFilename, 
+      memo, 
+      views: 0, 
+      ips: [], 
+      referers: [], 
+      owner: req.session.user?.id || 'anonymous', 
+      createdAt: getKSTString() 
+    });
     urls.push(`${req.protocol}://${req.get('host')}/image/${id}${ext}`);
     memosOut.push(memo);
   }
