@@ -2,8 +2,22 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 세션 설정
+app.use(session({
+  secret: 'hwaseon-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    maxAge: 24 * 60 * 60 * 1000 // 24시간
+  }
+}));
 
 app.use(express.static('public'));
 app.use(express.json());
@@ -45,6 +59,41 @@ function getKSTString() {
   const now = new Date();
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
 }
+
+// 관리자 비밀번호
+const ADMIN_PASSWORD = 'hwaseon@00';
+
+// 로그인 미들웨어
+const requireLogin = (req, res, next) => {
+  if (req.session.isLoggedIn) {
+    next();
+  } else {
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+};
+
+// 로그인 라우트
+app.post('/login', async (req, res) => {
+  const { password } = req.body;
+  
+  if (password === ADMIN_PASSWORD) {
+    req.session.isLoggedIn = true;
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: 'Invalid password' });
+  }
+});
+
+// 로그아웃 라우트
+app.post('/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+// 로그인 상태 확인 라우트
+app.get('/login-status', (req, res) => {
+  res.json({ isLoggedIn: !!req.session.isLoggedIn });
+});
 
 app.post('/upload', upload.single('image'), (req, res) => {
   const id = Date.now().toString();
