@@ -14,8 +14,8 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
-const BACKUP_JSON = path.join(__dirname, 'images_backup.json');
-const MIGRATION_FLAG = path.join(__dirname, 'images_migrated.flag');
+const BACKUP_JSON = path.join(DATA_DIR, 'images_backup.json');
+const MIGRATION_FLAG = path.join(DATA_DIR, 'images_migrated.flag');
 
 // 세션 미들웨어
 app.use(session({
