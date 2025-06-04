@@ -10,12 +10,22 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
-const DATA_DIR = '/data'
+const DATA_DIR = "/data"
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
 
+console.log('=== Server Startup Debug Info ===');
+console.log('DATA_DIR:', DATA_DIR);
+console.log('UPLOADS_DIR:', UPLOADS_DIR);
+console.log('IMAGES_JSON:', IMAGES_JSON);
+console.log('USERS_JSON:', USERS_JSON);
+console.log('Directory exists:', fs.existsSync(DATA_DIR));
+console.log('Users file exists:', fs.existsSync(USERS_JSON));
+console.log('Images file exists:', fs.existsSync(IMAGES_JSON));
+
 if (!fs.existsSync(UPLOADS_DIR)) {
+  console.log('Creating UPLOADS_DIR:', UPLOADS_DIR);
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
@@ -36,15 +46,16 @@ function saveImages() {
 let users = [];
 if (fs.existsSync(USERS_JSON)) {
   try {
-    users = JSON.parse(fs.readFileSync(USERS_JSON, 'utf-8'));
-    console.log('Loaded users:', users);
+    const usersData = fs.readFileSync(USERS_JSON, 'utf-8');
+    console.log('Users file content:', usersData);
+    users = JSON.parse(usersData);
   } catch (e) {
     console.error('Error loading users:', e);
     users = [];
   }
 } else {
-  // 최초 실행 시 관리자 계정 생성
-  users = [{ id: 'admin', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
+  console.log('Creating default admin user');
+  users = [{ id: 'hwaseon', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
   fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
 }
 function saveUsers() {
