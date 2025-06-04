@@ -4,11 +4,18 @@ const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 app.use(express.json());
+
+// CORS 미들웨어 (세션보다 먼저)
+app.use(cors({
+  origin: 'https://hwaseon-image.com', // 실제 프론트 도메인
+  credentials: true
+}));
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
