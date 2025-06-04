@@ -42,7 +42,7 @@ if (fs.existsSync(USERS_JSON)) {
   }
 } else {
   // 최초 실행 시 관리자 계정 생성
-  users = [{ id: 'admin', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
+  users = [{ id: 'hwaseon', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
   fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
 }
 function saveUsers() {
@@ -202,10 +202,8 @@ app.get('/dashboard-data', requireLogin, (req, res) => {
   const user = req.session.user;
   let filtered;
   if (user.role === 'admin') {
-    // 관리자: 모든 데이터(소유자 없는 데이터 포함)
     filtered = images;
   } else {
-    // 일반 사용자: owner가 본인인 데이터만
     filtered = images.filter(i => i.owner === user.id);
   }
   res.json(filtered.map(i => ({
