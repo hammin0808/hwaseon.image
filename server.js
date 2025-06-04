@@ -8,49 +8,25 @@ const bcrypt = require('bcryptjs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 세션 설정
-app.use(session({
-  secret: 'hwaseon-secret-key',
-  resave: true,
-  saveUninitialized: true,
-  store: new FileStore({
-    path: './sessions',
-    ttl: 24 * 60 * 60, // 24시간
-    reapInterval: 60 * 60, // 1시간마다 만료된 세션 정리
-    retries: 0
-  }),
-  cookie: {
-    httpOnly: true,
-    secure: false,
-    maxAge: 24 * 60 * 60 * 1000, // 24시간
-    sameSite: 'lax'
-  }
-}));
+// 도메인 설정
+const BASE_URL = process.env.NODE_ENV === 'production'
+  ? (process.env.DOMAIN || 'https://your-domain.com')
+  : `http://localhost:${PORT}`;
 
-// 세션 디버깅 미들웨어
-app.use((req, res, next) => {
-  console.log('Session Debug:', {
-    sessionID: req.sessionID,
-    user: req.session.user,
-    path: req.path
-  });
-  next();
-});
-
-app.use(express.static('public'));
-app.use(express.json());
-
-const DATA_DIR = process.env.DATA_DIR || '/data';
+// 필요한 디렉토리 설정
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
-const USERS_FILE = './users.json';
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+// 필요한 디렉토리 생성
+[DATA_DIR, UPLOADS_DIR, SESSIONS_DIR].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Created directory: ${dir}`);
+  }
+});
 
 // images.json에서 데이터 복원
 let images = [];
@@ -83,7 +59,18 @@ function getKSTString() {
 function loadUsers() {
   try {
     if (!fs.existsSync(USERS_FILE)) {
-      return { users: [] };
+      // 기본 관리자 계정 생성
+      const defaultAdmin = {
+        users: [{
+          id: '1',
+          username: 'admin',
+          passwordHash: '$2a$10$YourHashedPasswordHere', // 실제 해시된 비밀번호로 변경 필요
+          isAdmin: true,
+          createdAt: new Date().toISOString()
+        }]
+      };
+      fs.writeFileSync(USERS_FILE, JSON.stringify(defaultAdmin, null, 2));
+      return defaultAdmin;
     }
     return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
   } catch (error) {
@@ -91,6 +78,44 @@ function loadUsers() {
     return { users: [] };
   }
 }
+
+// 세션 설정
+app.use(session({
+  secret: 'hwaseon-secret-key',
+  resave: true,
+  saveUninitialized: true,
+  store: new FileStore({
+    path: SESSIONS_DIR,
+    ttl: 24 * 60 * 60,
+    reapInterval: 60 * 60,
+    retries: 0
+  }),
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'lax'
+  }
+}));
+
+// 에러 핸들링 미들웨어
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal Server Error', message: err.message });
+});
+
+// 세션 디버깅 미들웨어
+app.use((req, res, next) => {
+  console.log('Session Debug:', {
+    sessionID: req.sessionID,
+    user: req.session.user,
+    path: req.path
+  });
+  next();
+});
+
+app.use(express.static('public'));
+app.use(express.json());
 
 // 로그인 미들웨어
 const requireLogin = (req, res, next) => {
@@ -155,8 +180,21 @@ app.post('/upload', upload.single('image'), (req, res) => {
   const ext = path.extname(filename);
   images.push({ id, filename, memo, views: 0, ips: [], referers: [] });
   saveImages();
-  const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}${ext}`;
+  const imageUrl = `${BASE_URL}/image/${id}${ext}`;
   res.json({ url: imageUrl, memo });
+});
+
+// 이미지 제공 라우트 추가
+app.get('/image/:id', (req, res) => {
+  const { id } = req.params;
+  const image = images.find(img => img.id === id);
+  
+  if (!image) {
+    return res.status(404).send('Image not found');
+  }
+  
+  const imagePath = path.join(UPLOADS_DIR, image.filename);
+  res.sendFile(imagePath);
 });
 
 app.get('/dashboard-data', requireLogin, (req, res) => {
