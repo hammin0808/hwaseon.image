@@ -42,7 +42,7 @@ if (fs.existsSync(USERS_JSON)) {
   }
 } else {
   // 최초 실행 시 관리자 계정 생성
-  users = [{ id: 'hwaseon', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
+  users = [{ id: 'admin', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
   fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
 }
 function saveUsers() {
