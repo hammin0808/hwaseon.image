@@ -10,10 +10,12 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
-const DATA_DIR = "/data"
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+console.log('Using DATA_DIR:', DATA_DIR);
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
+console.log('Users file path:', USERS_JSON);
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -37,7 +39,9 @@ let users = [];
 if (fs.existsSync(USERS_JSON)) {
   try {
     users = JSON.parse(fs.readFileSync(USERS_JSON, 'utf-8'));
+    console.log('Loaded users:', users);
   } catch (e) {
+    console.error('Error loading users:', e);
     users = [];
   }
 } else {
@@ -79,9 +83,18 @@ function requireLogin(req, res, next) {
 
 app.post('/login', (req, res) => {
   const { id, pw } = req.body;
+  console.log('Login attempt:', { id, pw });
+  console.log('Available users:', users);
   const user = users.find(u => u.id === id);
-  if (!user) return res.status(401).json({ error: '존재하지 않는 계정입니다.' });
-  if (!bcrypt.compareSync(pw, user.pw)) return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+  if (!user) {
+    console.log('User not found');
+    return res.status(401).json({ error: '존재하지 않는 계정입니다.' });
+  }
+  if (!bcrypt.compareSync(pw, user.pw)) {
+    console.log('Password mismatch');
+    return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+  }
+  console.log('Login successful:', { id: user.id, role: user.role });
   req.session.user = { id: user.id, role: user.role };
   res.json({ success: true, id: user.id, role: user.role });
 });
