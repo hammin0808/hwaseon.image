@@ -5,6 +5,7 @@ const fs = require('fs');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
+const FileStore = require('session-file-store')(session);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -15,8 +16,10 @@ const isProd = process.env.NODE_ENV === 'production';
 
 // CORS 미들웨어 (세션보다 먼저)
 app.use(cors({
-  origin: 'https://hwaseon-image.com', // 실제 프론트 도메인
-  credentials: true
+  origin: isProd ? ['https://hwaseon-image.com', 'https://hwaseon-image.onrender.com'] : ['http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -75,20 +78,22 @@ function getKSTString() {
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
 }
 
-// 세션 미들웨어 (환경에 따라 분기)
+// 세션 미들웨어 (파일 기반, 환경별 secure/sameSite 분기)
 app.use(session({
   secret: 'hwaseon-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: isProd ? {
-    maxAge: 1000 * 60 * 60 * 24,
-    secure: true,
-    sameSite: 'none',
-    domain: '.hwaseon-image.com'
-  } : {
-    maxAge: 1000 * 60 * 60 * 24,
-    secure: false,
-    sameSite: 'lax'
+  store: new FileStore({
+    path: './sessions',
+    ttl: 24 * 60 * 60,
+    reapInterval: 60 * 60,
+    retries: 0
+  }),
+  cookie: {
+    httpOnly: true,
+    secure: isProd,
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: isProd ? 'none' : 'lax'
   }
 }));
 
@@ -188,6 +193,36 @@ app.delete('/users/:id', (req, res) => {
   saveUsers();
   res.json({ success: true });
 });
+
+// 관리자 로그인 API
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json({ success: false, message: '비밀번호를 입력해주세요.' });
+  }
+  if (password !== 'hwaseon@00') {
+    return res.status(401).json({ success: false, message: '비밀번호가 일치하지 않습니다.' });
+  }
+  req.session.user = {
+    id: 'admin',
+    username: 'hwaseonad',
+    isAdmin: true
+  };
+  req.session.save(err => {
+    if (err) {
+      return res.status(500).json({ success: false, message: '세션 저장 오류' });
+    }
+    res.json({ success: true, user: req.session.user });
+  });
+});
+
+// 관리자 인증 미들웨어
+function requireAdmin(req, res, next) {
+  if (!req.session.user || !req.session.user.isAdmin) {
+    return res.status(401).json({ success: false, message: '관리자 권한이 필요합니다.' });
+  }
+  next();
+}
 
 // 로그인
 app.post('/login', (req, res) => {
