@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>이미지+메모 다중 URL 생성</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .multi-memo-container { max-width: 600px; margin: 48px auto; background: #fff; border-radius: 18px; box-shadow: 0 4px 24px rgba(24,119,242,0.10); padding: 36px 38px; }
+    .multi-memo-title { font-size: 2.1rem; font-weight: bold; color: #1877f2; margin-bottom: 22px; }
+    .multi-memo-label { font-weight: 500; color: #1877f2; margin-bottom: 6px; display: block; }
+    .multi-memo-btn { background: #1877f2; color: #fff; border: none; border-radius: 7px; padding: 10px 28px; font-size: 1.08rem; font-weight: 500; cursor: pointer; margin: 0 0 10px 0; }
+    .multi-memo-btn:hover { background: #1456b8; }
+    .multi-memo-remove { background: #dc3545; color: #fff; border: none; border-radius: 7px; padding: 0 10px; font-size: 0.93rem; margin-left: 8px; cursor: pointer; height: 26px; min-width: 0; width: auto; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .multi-memo-remove:hover { background: #b52a37; }
+    .multi-memo-result { margin-top: 18px; }
+    .multi-memo-url { color: #1877f2; font-weight: 500; word-break: break-all; }
+    .multi-memo-input-group input[type="text"] { font-size: 1.08rem; padding: 13px 14px; border-radius: 8px; border: 1.5px solid #e3e8f0; width: 100%; }
+    .multi-memo-input-group { width: 100%; }
+  </style>
+</head>
+<body style="background:#f4f6fa;">
+  <div class="multi-memo-container">
+    <div style="margin-bottom:32px;">
+      <div class="multi-memo-title" style="font-size:2.1rem;font-weight:650; color:#1877f2;margin-bottom:22px;text-align:left;letter-spacing:-1px;">Hwaseon 이미지 다중 URL</div>
+      <div style="display:flex;justify-content:flex-end;gap:16px;margin-bottom:0;">
+        <button onclick="location.href='index.html'" class="multi-memo-btn" style="background:#f4f6fa;color:#1877f2;border:1.5px solid #e3e9f7;padding:10px 28px;font-weight:600;font-size:1.08rem;box-shadow:none;">홈</button>
+        <button onclick="location.href='dashboard.html'" class="multi-memo-btn" style="background:#1877f2;padding:10px 28px;font-size:1.08rem;">대시보드</button>
+      </div>
+    </div>
+    <form id="multiMemoForm">
+      <label class="multi-memo-label">이미지 선택</label>
+      <label class="custom-file-upload" style="margin-bottom:18px;">
+        <input type="file" name="image" id="multiMemoImage" required accept="image/*">
+        <span class="upload-icon">📁</span>
+        <span class="upload-text">이미지를 선택하세요.</span>
+      </label>
+      <div id="multiMemoPreview" class="upload-preview" style="display:none;"></div>
+      <label class="multi-memo-label">메모 입력</label>
+      <div id="multiMemoList">
+        <div class="input-group multi-memo-input-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="text" name="memo" placeholder="메모 입력" required style="flex:1;">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:0;margin-top:8px;">
+        <button type="button" id="addMultiMemoBtn" class="multi-memo-btn" style="flex:1;min-width:0;">메모 추가</button>
+        <button type="submit" class="multi-memo-btn" style="flex:1;min-width:0;background:#19c37d;">업로드</button>
+      </div>
+    </form>
+    <div id="multiMemoResult" class="multi-memo-result"></div>
+  </div>
+  <script src="multi-memo.js"></script>
+</body>
+</html> 

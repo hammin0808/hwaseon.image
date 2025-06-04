@@ -4,23 +4,142 @@
   <meta charset="UTF-8">
   <title>대시보드</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 32px 0 32px;
+      background: #fff;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 2px 8px rgba(24,119,242,0.07);
+      margin-bottom: 0;
+    }
+    .dashboard-title {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #1877f2;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dashboard-table-wrap {
+      background: #f8faff;
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 2px 8px rgba(24,119,242,0.07);
+      padding: 0 32px 32px 32px;
+      margin-top: 0;
+    }
+    .dashboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 32px;
+      box-shadow: 0 2px 8px rgba(24,119,242,0.07);
+    }
+    .dashboard-table th {
+      background: #1877f2;
+      color: #fff;
+      font-weight: 500;
+      text-align: center;
+      padding: 16px 8px;
+      font-size: 1.08rem;
+    }
+    .dashboard-table td {
+      padding: 14px 8px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 1rem;
+      background: #fff;
+    }
+    .dashboard-table tr:hover td {
+      background: #f4f6fa;
+    }
+    .dashboard-img-thumb {
+      max-width: 80px;
+      max-height: 80px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(24,119,242,0.10);
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .dashboard-btn-blue {
+      background: #1877f2;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 18px;
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      margin-right: 6px;
+      transition: background 0.2s;
+    }
+    .dashboard-btn-blue:hover {
+      background: #1456b8;
+    }
+    .dashboard-btn-red {
+      background: #dc3545;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 18px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .dashboard-btn-red:hover {
+      background: #b52a37;
+    }
+    .dashboard-url-link {
+      color: #1877f2;
+      text-decoration: underline;
+      word-break: break-all;
+    }
+    .dashboard-blog-link {
+      color: #3575e1;
+      text-decoration: underline;
+      word-break: break-all;
+    }
+  </style>
 </head>
-<body>
-  <div class="dashboard-section">
-    <h1>대시보드</h1>
-    <button onclick="location.href='index.html'" class="home-btn">홈으로</button>
-    <div id="dashboard" class="dashboard-grid"></div>
+<body style="background:#f4f6fa;">
+  <div class="dashboard-container" style="max-width:1400px;margin:40px auto 0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,0.08);padding:0;">
+    <div class="dashboard-header">
+      <div class="dashboard-title"><span style="font-size:1.7rem;">⚡</span>대시보드</div>
+      <div><button onclick="location.href='index.html'" class="dashboard-btn-blue">홈으로</button></div>
+    </div>
+    <div class="dashboard-table-wrap">
+      <table class="dashboard-table">
+        <thead>
+          <tr>
+            <th>이미지</th>
+            <th>이미지 URL</th>
+            <th>블로그 URL</th>
+            <th>메모</th>
+            <th>상세보기</th>
+            <th>삭제</th>
+          </tr>
+        </thead>
+        <tbody id="dashboard-tbody">
+          <!-- JS로 데이터 렌더링 -->
+        </tbody>
+      </table>
+    </div>
   </div>
   <div id="modal" class="modal" style="display:none;">
     <div class="modal-content">
       <span id="modal-close" class="modal-close" style="cursor:pointer;float:right;font-size:1.5rem;">&times;</span>
-      <h2>상세 정보</h2>
       <div id="modal-body"></div>
     </div>
   </div>
-  <div id="img-modal" class="img-modal" style="display:none;">
-    <div class="img-modal-content">
-      <img id="img-modal-img" src="" alt="미리보기">
+  <div id="img-modal" class="img-modal" style="display:none;align-items:center;justify-content:center;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.45);z-index:1000;">
+    <div class="img-modal-content" style="background:transparent;box-shadow:none;display:flex;align-items:center;justify-content:center;">
+      <img id="img-modal-img" src="" alt="미리보기" style="max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.18);background:#fff;">
     </div>
   </div>
   <script src="script.js"></script>

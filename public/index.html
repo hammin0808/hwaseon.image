@@ -16,21 +16,13 @@
       </label>
       <div id="preview" class="upload-preview" style="display:none;"></div>
       <div class="input-group">
-        <textarea name="memo" id="memoTextarea" placeholder="메모를 여러 줄로 입력하면 각각 생성됩니다." rows="4" style="resize:vertical;"></textarea>
-      </div>
-      <div class="input-group">
-        <label for="excelInput" style="font-weight:normal;">엑셀 업로드 (xlsx): </label>
-        <input type="file" id="excelInput" accept=".xlsx,.xls">
+        <input type="text" name="memo" placeholder="메모 입력" required>
       </div>
       <div id="result" class="result" style="display:none;"></div>
       <button type="submit">업로드</button>
     </form>
     <button id="dashboardBtn" class="dashboard-btn">대시보드</button>
-  </div>
-  <div id="img-modal" class="img-modal" style="display:none;">
-    <div class="img-modal-content">
-      <img id="img-modal-img" src="" alt="미리보기">
-    </div>
+    <button id="multiMemoBtn" class="dashboard-btn" style="margin-top:20px;background:#19c37d;">다중 URL 만들기</button>
   </div>
   <script src="script.js"></script>
 </body>
