@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,14 +11,31 @@ const PORT = process.env.PORT || 3000;
 // 세션 설정
 app.use(session({
   secret: 'hwaseon-secret-key',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
+  store: new FileStore({
+    path: './sessions',
+    ttl: 24 * 60 * 60, // 24시간
+    reapInterval: 60 * 60, // 1시간마다 만료된 세션 정리
+    retries: 0
+  }),
   cookie: {
     httpOnly: true,
     secure: false,
-    maxAge: 24 * 60 * 60 * 1000 // 24시간
+    maxAge: 24 * 60 * 60 * 1000, // 24시간
+    sameSite: 'lax'
   }
 }));
+
+// 세션 디버깅 미들웨어
+app.use((req, res, next) => {
+  console.log('Session Debug:', {
+    sessionID: req.sessionID,
+    user: req.session.user,
+    path: req.path
+  });
+  next();
+});
 
 app.use(express.static('public'));
 app.use(express.json());
@@ -25,6 +43,7 @@ app.use(express.json());
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
+const USERS_FILE = './users.json';
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -60,12 +79,22 @@ function getKSTString() {
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
 }
 
-// 관리자 비밀번호
-const ADMIN_PASSWORD = 'hwaseon@00';
+// 사용자 데이터 로드 함수
+function loadUsers() {
+  try {
+    if (!fs.existsSync(USERS_FILE)) {
+      return { users: [] };
+    }
+    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+  } catch (error) {
+    console.error('Error loading users:', error);
+    return { users: [] };
+  }
+}
 
 // 로그인 미들웨어
 const requireLogin = (req, res, next) => {
-  if (req.session.isLoggedIn) {
+  if (req.session.user) {
     next();
   } else {
     res.status(401).json({ error: 'Unauthorized' });
@@ -76,11 +105,29 @@ const requireLogin = (req, res, next) => {
 app.post('/login', async (req, res) => {
   const { password } = req.body;
   
-  if (password === ADMIN_PASSWORD) {
-    req.session.isLoggedIn = true;
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ error: 'Invalid password' });
+  try {
+    const userData = loadUsers();
+    const adminUser = userData.users.find(u => u.isAdmin);
+    
+    if (!adminUser) {
+      return res.status(401).json({ error: 'Admin account not found' });
+    }
+    
+    const isValidPassword = await bcrypt.compare(password, adminUser.passwordHash);
+    
+    if (isValidPassword) {
+      req.session.user = {
+        id: adminUser.id,
+        username: adminUser.username,
+        isAdmin: true
+      };
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ error: 'Invalid password' });
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -92,7 +139,13 @@ app.post('/logout', (req, res) => {
 
 // 로그인 상태 확인 라우트
 app.get('/login-status', (req, res) => {
-  res.json({ isLoggedIn: !!req.session.isLoggedIn });
+  res.json({ 
+    isLoggedIn: !!req.session.user,
+    user: req.session.user ? {
+      username: req.session.user.username,
+      isAdmin: req.session.user.isAdmin
+    } : null
+  });
 });
 
 app.post('/upload', upload.single('image'), (req, res) => {
