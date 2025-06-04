@@ -14,8 +14,6 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
-const BACKUP_JSON = path.join(__dirname, 'images_backup.json');
-const MIGRATION_FLAG = path.join(__dirname, 'images_migrated.flag');
 
 // 세션 미들웨어
 app.use(session({
@@ -38,30 +36,6 @@ if (fs.existsSync(IMAGES_JSON)) {
     images = [];
   }
 }
-
-if (fs.existsSync(IMAGES_JSON) && !fs.existsSync(MIGRATION_FLAG)) {
-  // 1. 백업
-  fs.copyFileSync(IMAGES_JSON, BACKUP_JSON);
-
-  // 2. owner 일괄 변경
-  let changed = false;
-  images.forEach(img => {
-    if (!img.owner || img.owner === '') {
-      img.owner = 'hwaseon'; // 관리자 아이디
-      changed = true;
-    }
-  });
-
-  // 3. 저장
-  if (changed) {
-    fs.writeFileSync(IMAGES_JSON, JSON.stringify(images, null, 2));
-  }
-
-  // 4. 마이그레이션 완료 플래그 생성
-  fs.writeFileSync(MIGRATION_FLAG, 'done');
-  console.log('이미지 데이터 마이그레이션 및 백업 완료!');
-}
-
 function saveImages() {
   fs.writeFileSync(IMAGES_JSON, JSON.stringify(images, null, 2));
 }
