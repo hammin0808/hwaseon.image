@@ -881,4 +881,12 @@ img {
 .dashboard-table td:nth-child(5) {
   padding-left: 15px;
   padding-right: 15px;
+}
+
+.dashboard-table td button.dashboard-btn-red {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  white-space: nowrap;
 } 

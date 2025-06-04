@@ -83,14 +83,25 @@ if (document.getElementById('dashboard-tbody')) {
   fetch('/dashboard-data')
     .then(res => res.json())
     .then(data => {
+      // 최근에 만든 이미지가 제일 위에 오도록 내림차순 정렬 (id 기준)
+      data.sort((a, b) => {
+        // id가 숫자형이면 숫자 내림차순, 아니면 filename의 숫자 부분으로 비교
+        const aid = Number(a.id || a.filename?.replace(/\D/g, ''));
+        const bid = Number(b.id || b.filename?.replace(/\D/g, ''));
+        return bid - aid;
+      });
       const tbody = document.getElementById('dashboard-tbody');
       tbody.innerHTML = data.map((img, idx) => {
         const fullUrl = `${location.origin}${img.url}`;
         const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
+        // 네이버 블로그 본문 URL만 남기는 함수
+        function isRealBlogPost(url) {
+          return /PostView\.naver\?blogId=.+&logNo=/.test(url);
+        }
         // 블로그(가장 많이 불러간 referer, 실제 글 주소만)
         let mainReferer = '-';
         if (img.referers && img.referers.length > 0) {
-          const realReferers = img.referers.filter(ref => !/\/(write|edit|compose|admin|preview)/.test(ref.referer));
+          const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
           if (realReferers.length > 0) {
             mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link'>${realReferers[0].referer}</a>`;
           }
@@ -148,20 +159,17 @@ if (document.getElementById('dashboard-tbody')) {
           // 블로그 referer 표
           let refTable = '';
           if (img.referers && img.referers.length > 0) {
-            const realReferers = img.referers.filter(ref => !/\/(write|postwrite|edit|compose|admin|preview)/.test(ref.referer));
+            const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
+              const ref = realReferers[0];
               refTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th>블로그 주소</th><th>최초</th></tr>` +
-                realReferers.map(ref => `
-                  <tr>
-                    <td style='word-break:break-all;'><a href='${ref.referer}' target='_blank' class='dashboard-blog-link'>${ref.referer}</a></td>
-                    <td>${formatDate(ref.firstVisit)}</td>
-                  </tr>
-                `).join('') + '</table></div>';
+                `<tr><td style='word-break:break-all;'><a href='${ref.referer}' target='_blank' class='dashboard-blog-link'>${ref.referer}</a></td><td>${formatDate(ref.firstVisit)}</td></tr>` +
+                '</table></div>';
             } else {
-              refTable = `<div class='modal-table-wrap'><div style="color:#888;padding:18px 0;text-align:center;">블로그 기록 없음</div></div>`;
+              refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
             }
           } else {
-            refTable = `<div class='modal-table-wrap'><div style="color:#888;padding:18px 0;text-align:center;">블로그 기록 없음</div></div>`;
+            refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
           }
           let ipTable = '';
           if (img.ips && img.ips.length > 0) {
