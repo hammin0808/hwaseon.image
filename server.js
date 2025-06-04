@@ -10,12 +10,10 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-console.log('Using DATA_DIR:', DATA_DIR);
+const DATA_DIR = '/data'
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
-console.log('Users file path:', USERS_JSON);
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
