@@ -51,21 +51,30 @@ app.post('/upload', upload.single('image'), (req, res) => {
   const { memo } = req.body;
   const filename = req.file.filename;
   const ext = path.extname(filename);
-  images.push({ id, filename, memo, views: 0, ips: [], referers: [] });
+  images.push({ id, filename, memo, views: 0, ips: [], referers: [], owner: req.session.user?.id || 'anonymous', createdAt: getKSTString() });
   saveImages();
   const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}${ext}`;
   res.json({ url: imageUrl, memo });
 });
 
-app.get('/dashboard-data', (req, res) => {
-  res.json(images.map(i => ({
+app.get('/dashboard-data', requireLogin, (req, res) => {
+  const user = req.session.user;
+  let filtered;
+  if (user.role === 'admin') {
+    filtered = images;
+  } else {
+    filtered = images.filter(i => i.owner === user.id);
+  }
+  res.json(filtered.map(i => ({
     url: `/image/${i.id}`,
     memo: i.memo,
     views: i.views,
     ips: i.ips,
     referers: i.referers,
     unique: i.ips.length,
-    filename: i.filename
+    filename: i.filename,
+    owner: i.owner,
+    createdAt: i.createdAt
   })));
 });
 
@@ -77,6 +86,26 @@ app.delete('/image/:id', (req, res) => {
   saveImages();
   fs.unlink(path.join(UPLOADS_DIR, filename), () => {});
   res.json({ success: true });
+});
+
+app.get('/me', (req, res) => {
+  if (!req.session.user) return res.json({});
+  res.json({ id: req.session.user.id, role: req.session.user.role });
+});
+
+app.get('/users', (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: '권한 없음' });
+  res.json(users.map(u => ({ id: u.id, createdAt: u.createdAt, role: u.role })));
+});
+
+app.post('/register', (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: '권한 없음' });
+  // ...생성 코드...
+});
+
+app.delete('/users/:id', (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: '권한 없음' });
+  // ...삭제 코드...
 });
 
 app.listen(PORT, () => {
