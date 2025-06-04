@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -12,7 +13,7 @@ app.use(express.json());
 
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
-const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
+const IMAGES_JSON = path.join(DATA_DIR, 'images.json');ㄴ
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
 
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -49,12 +50,23 @@ function saveUsers() {
   fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
 }
 
-// 세션 미들웨어
+// CORS 설정 추가 (프론트 도메인에 맞게)
+app.use(cors({
+  origin: 'https://hwaseon-image.com',
+  credentials: true
+}));
+
+// 세션 미들웨어 (배포 환경에 맞게)
 app.use(session({
   secret: 'hwaseon-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 24 }
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24,
+    secure: true,
+    sameSite: 'none',
+    domain: '.hwaseon-image.com'
+  }
 }));
 
 const storage = multer.diskStorage({
@@ -103,7 +115,8 @@ app.post('/register', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/upload', requireLogin, upload.single('image'), (req, res) => {
+// 업로드: 로그인 없이 허용
+app.post('/upload', upload.single('image'), (req, res) => {
   let memos = req.body['memo[]'] || req.body.memo;
   if (!Array.isArray(memos)) memos = memos ? [memos] : [];
   if (!req.file || memos.length === 0) return res.status(400).json({ error: '이미지와 메모를 모두 입력하세요.' });
@@ -114,7 +127,16 @@ app.post('/upload', requireLogin, upload.single('image'), (req, res) => {
     const id = Date.now().toString() + Math.floor(Math.random()*100000).toString();
     const newFilename = id + ext;
     fs.copyFileSync(path.join(UPLOADS_DIR, req.file.filename), path.join(UPLOADS_DIR, newFilename));
-    images.push({ id, filename: newFilename, memo, views: 0, ips: [], referers: [], owner: req.session.user.id, createdAt: getKSTString() });
+    images.push({
+      id,
+      filename: newFilename,
+      memo,
+      views: 0,
+      ips: [],
+      referers: [],
+      owner: req.session.user?.id || 'anonymous',
+      createdAt: getKSTString()
+    });
     urls.push(`${req.protocol}://${req.get('host')}/image/${id}${ext}`);
     memosOut.push(memo);
   }
