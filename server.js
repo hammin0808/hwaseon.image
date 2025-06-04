@@ -86,14 +86,32 @@ function requireLogin(req, res, next) {
 }
 
 app.post('/upload', upload.single('image'), (req, res) => {
-  const id = Date.now().toString();
-  const { memo } = req.body;
-  const filename = req.file.filename;
-  const ext = path.extname(filename);
-  images.push({ id, filename, memo, views: 0, ips: [], referers: [], owner: req.session.user?.id || 'anonymous', createdAt: getKSTString() });
+  let memos = req.body['memo[]'] || req.body.memo;
+  if (!Array.isArray(memos)) memos = memos ? [memos] : [];
+  if (!req.file || memos.length === 0) return res.status(400).json({ error: '이미지와 메모를 모두 입력하세요.' });
+  const ext = path.extname(req.file.filename);
+  const urls = [];
+  const memosOut = [];
+  for (const memo of memos) {
+    const id = Date.now().toString() + Math.floor(Math.random()*100000).toString();
+    const newFilename = id + ext;
+    fs.copyFileSync(path.join(UPLOADS_DIR, req.file.filename), path.join(UPLOADS_DIR, newFilename));
+    images.push({
+      id,
+      filename: newFilename,
+      memo,
+      views: 0,
+      ips: [],
+      referers: [],
+      owner: req.session.user?.id || 'anonymous',
+      createdAt: getKSTString()
+    });
+    urls.push(`${req.protocol}://${req.get('host')}/image/${id}${ext}`);
+    memosOut.push(memo);
+  }
   saveImages();
-  const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}${ext}`;
-  res.json({ url: imageUrl, memo });
+  fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+  res.json({ urls, memos: memosOut });
 });
 
 app.get('/dashboard-data', requireLogin, (req, res) => {
@@ -139,12 +157,23 @@ app.get('/users', (req, res) => {
 
 app.post('/register', (req, res) => {
   if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: '권한 없음' });
-  // ...생성 코드...
+  const { id, pw } = req.body;
+  if (!id || !pw) return res.status(400).json({ error: '필수 입력값 누락' });
+  if (users.find(u => u.id === id)) return res.status(409).json({ error: '이미 존재하는 아이디' });
+  users.push({ id, pw: bcrypt.hashSync(pw, 8), role: 'user', createdAt: getKSTString() });
+  saveUsers();
+  res.json({ success: true });
 });
 
 app.delete('/users/:id', (req, res) => {
   if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: '권한 없음' });
-  // ...삭제 코드...
+  const { id } = req.params;
+  if (id === 'hwaseon') return res.status(400).json({ error: '관리자 계정은 삭제할 수 없습니다.' });
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return res.status(404).json({ error: '존재하지 않는 계정' });
+  users.splice(idx, 1);
+  saveUsers();
+  res.json({ success: true });
 });
 
 // 로그인
@@ -162,6 +191,21 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => {
     res.json({ success: true });
   });
+});
+
+app.get('/image/:id', (req, res) => {
+  // id에서 확장자 제거
+  const id = req.params.id.split('.')[0];
+  const img = images.find(i => i.id === id);
+  if (!img) return res.status(404).send('Not found');
+  const ext = path.extname(img.filename).toLowerCase();
+  let contentType = 'application/octet-stream';
+  if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+  else if (ext === '.png') contentType = 'image/png';
+  else if (ext === '.gif') contentType = 'image/gif';
+  else if (ext === '.webp') contentType = 'image/webp';
+  res.set('Content-Type', contentType);
+  res.sendFile(path.join(UPLOADS_DIR, img.filename));
 });
 
 app.listen(PORT, () => {
