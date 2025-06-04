@@ -15,7 +15,12 @@ const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
 
-
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 
 // images.json에서 데이터 복원
 let images = [];
