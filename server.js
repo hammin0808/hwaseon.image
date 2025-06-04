@@ -55,10 +55,6 @@ if (fs.existsSync(USERS_JSON)) {
   } catch (e) {
     users = [];
   }
-} else {
-  // 최초 실행 시 관리자 계정 생성
-  users = [{ id: 'hwaseon', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
-  fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
 }
 function saveUsers() {
   fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
@@ -242,7 +238,6 @@ app.post('/logout', (req, res) => {
 });
 
 app.get('/image/:id', (req, res) => {
-  // id에서 확장자 제거
   const id = req.params.id.split('.')[0];
   const img = images.find(i => i.id === id);
   if (!img) return res.status(404).send('Not found');
@@ -253,7 +248,12 @@ app.get('/image/:id', (req, res) => {
   else if (ext === '.gif') contentType = 'image/gif';
   else if (ext === '.webp') contentType = 'image/webp';
   res.set('Content-Type', contentType);
-  res.sendFile(path.join(UPLOADS_DIR, img.filename));
+  res.sendFile(path.join(UPLOADS_DIR, img.filename), err => {
+    if (err) {
+      console.error('sendFile error:', err);
+      if (!res.headersSent) res.status(500).send('Internal Server Error');
+    }
+  });
 });
 
 app.listen(PORT, () => {
