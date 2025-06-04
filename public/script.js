@@ -1,3 +1,7 @@
+// 네이버 블로그 본문 URL만 남기는 함수 (최상단에 선언)
+function isRealBlogPost(url) {
+  return /PostView\.naver\?blogId=.+&logNo=/.test(url);
+}
 // index.html
 if (document.getElementById('uploadForm')) {
   const resultDiv = document.getElementById('result');
@@ -94,10 +98,6 @@ if (document.getElementById('dashboard-tbody')) {
       tbody.innerHTML = data.map((img, idx) => {
         const fullUrl = `${location.origin}${img.url}`;
         const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
-        // 네이버 블로그 본문 URL만 남기는 함수 (상단에 선언)
-        function isRealBlogPost(url) {
-          return /PostView\.naver\?blogId=.+&logNo=/.test(url);
-        }
         // 블로그(가장 많이 불러간 referer, 실제 글 주소만)
         let mainReferer = '-';
         if (img.referers && img.referers.length > 0) {
