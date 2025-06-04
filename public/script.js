@@ -23,6 +23,23 @@ if (document.getElementById('uploadForm')) {
   };
   document.getElementById('uploadForm').onsubmit = async (e) => {
     e.preventDefault();
+    
+    // 로그인 상태 확인
+    try {
+      const meRes = await fetch('/me');
+      const meData = await meRes.json();
+      if (!meData.id) {
+        alert('로그인이 필요합니다.');
+        location.href = 'login.html';
+        return;
+      }
+    } catch (err) {
+      console.error('Session check failed:', err);
+      alert('로그인이 필요합니다.');
+      location.href = 'login.html';
+      return;
+    }
+
     const formData = new FormData(e.target);
     const file = document.getElementById('imageInput').files[0];
     // memo를 배열이 아닌 단일 값으로 보냄

@@ -67,8 +67,22 @@ app.use(session({
   secret: 'hwaseon-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 24 }
+  cookie: { 
+    maxAge: 1000 * 60 * 60 * 24,
+    secure: process.env.NODE_ENV === 'production', // HTTPS에서만 쿠키 전송
+    sameSite: 'lax'
+  }
 }));
+
+// 세션 디버그 미들웨어
+app.use((req, res, next) => {
+  console.log('Session debug:', {
+    sessionID: req.sessionID,
+    user: req.session.user,
+    cookie: req.session.cookie
+  });
+  next();
+});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -86,7 +100,14 @@ function getKSTString() {
 
 // 로그인 체크 미들웨어
 function requireLogin(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: '로그인 필요' });
+  console.log('Login check:', {
+    sessionID: req.sessionID,
+    user: req.session.user
+  });
+  if (!req.session.user) {
+    console.log('Login required but no user in session');
+    return res.status(401).json({ error: '로그인 필요' });
+  }
   next();
 }
 
