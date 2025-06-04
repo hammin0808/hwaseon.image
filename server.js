@@ -11,6 +11,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
+const isProd = process.env.NODE_ENV === 'production';
+
 // CORS 미들웨어 (세션보다 먼저)
 app.use(cors({
   origin: 'https://hwaseon-image.com', // 실제 프론트 도메인
@@ -73,16 +75,20 @@ function getKSTString() {
   return now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }).replace(/\./g, '-').replace(' 오전', '').replace(' 오후', '').replace(/\s+/g, ' ').trim();
 }
 
-// 세션 미들웨어
+// 세션 미들웨어 (환경에 따라 분기)
 app.use(session({
   secret: 'hwaseon-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: {
+  cookie: isProd ? {
     maxAge: 1000 * 60 * 60 * 24,
     secure: true,
     sameSite: 'none',
     domain: '.hwaseon-image.com'
+  } : {
+    maxAge: 1000 * 60 * 60 * 24,
+    secure: false,
+    sameSite: 'lax'
   }
 }));
 
