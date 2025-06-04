@@ -47,17 +47,40 @@ let users = [];
 if (fs.existsSync(USERS_JSON)) {
   try {
     const usersData = fs.readFileSync(USERS_JSON, 'utf-8');
+    console.log('Loading users from file:', USERS_JSON);
     console.log('Users file content:', usersData);
     users = JSON.parse(usersData);
+    console.log('Parsed users:', users);
   } catch (e) {
     console.error('Error loading users:', e);
     users = [];
   }
 } else {
-  console.log('Creating default admin user');
-  users = [{ id: 'hwaseon', pw: bcrypt.hashSync('hwaseon@00', 8), role: 'admin', createdAt: getKSTString() }];
-  fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
+  console.log('Users file not found, creating default admin user');
+  users = [{ 
+    id: 'hwaseon', 
+    pw: bcrypt.hashSync('hwaseon@00', 8), 
+    role: 'admin', 
+    createdAt: getKSTString() 
+  }];
+  try {
+    fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
+    console.log('Created default users file with admin user');
+  } catch (e) {
+    console.error('Error creating users file:', e);
+  }
 }
+
+// 주기적으로 users 배열을 파일에 저장
+setInterval(() => {
+  try {
+    fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
+    console.log('Users file updated');
+  } catch (e) {
+    console.error('Error updating users file:', e);
+  }
+}, 60000); // 1분마다 저장
+
 function saveUsers() {
   fs.writeFileSync(USERS_JSON, JSON.stringify(users, null, 2));
 }
@@ -65,22 +88,34 @@ function saveUsers() {
 // 세션 미들웨어
 app.use(session({
   secret: 'hwaseon-secret',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
   cookie: { 
     maxAge: 1000 * 60 * 60 * 24,
-    secure: process.env.NODE_ENV === 'production', // HTTPS에서만 쿠키 전송
-    sameSite: 'lax'
+    secure: true,  // HTTPS에서만 쿠키 전송
+    sameSite: 'none'  // 크로스 사이트 요청 허용
   }
 }));
 
 // 세션 디버그 미들웨어
 app.use((req, res, next) => {
-  console.log('Session debug:', {
+  console.log('Request debug:', {
+    path: req.path,
+    method: req.method,
     sessionID: req.sessionID,
     user: req.session.user,
-    cookie: req.session.cookie
+    cookie: req.session.cookie,
+    headers: req.headers
   });
+  next();
+});
+
+// CORS 설정 추가
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
 
@@ -101,8 +136,10 @@ function getKSTString() {
 // 로그인 체크 미들웨어
 function requireLogin(req, res, next) {
   console.log('Login check:', {
+    path: req.path,
     sessionID: req.sessionID,
-    user: req.session.user
+    user: req.session.user,
+    headers: req.headers
   });
   if (!req.session.user) {
     console.log('Login required but no user in session');
@@ -113,20 +150,38 @@ function requireLogin(req, res, next) {
 
 app.post('/login', (req, res) => {
   const { id, pw } = req.body;
-  console.log('Login attempt:', { id, pw });
-  console.log('Available users:', users);
-  const user = users.find(u => u.id === id);
-  if (!user) {
-    console.log('User not found');
-    return res.status(401).json({ error: '존재하지 않는 계정입니다.' });
+  console.log('Login attempt:', { 
+    id, 
+    pw,
+    usersFile: USERS_JSON,
+    usersFileExists: fs.existsSync(USERS_JSON),
+    users: users
+  });
+
+  try {
+    const user = users.find(u => u.id === id);
+    console.log('Found user:', user);
+    
+    if (!user) {
+      console.log('User not found');
+      return res.status(401).json({ error: '존재하지 않는 계정입니다.' });
+    }
+
+    const passwordMatch = bcrypt.compareSync(pw, user.pw);
+    console.log('Password match:', passwordMatch);
+
+    if (!passwordMatch) {
+      console.log('Password mismatch');
+      return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+    }
+
+    console.log('Login successful:', { id: user.id, role: user.role });
+    req.session.user = { id: user.id, role: user.role };
+    res.json({ success: true, id: user.id, role: user.role });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: '로그인 처리 중 오류가 발생했습니다.' });
   }
-  if (!bcrypt.compareSync(pw, user.pw)) {
-    console.log('Password mismatch');
-    return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
-  }
-  console.log('Login successful:', { id: user.id, role: user.role });
-  req.session.user = { id: user.id, role: user.role };
-  res.json({ success: true, id: user.id, role: user.role });
 });
 
 app.post('/logout', (req, res) => {

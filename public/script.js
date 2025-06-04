@@ -26,7 +26,9 @@ if (document.getElementById('uploadForm')) {
     
     // 로그인 상태 확인
     try {
-      const meRes = await fetch('/me');
+      const meRes = await fetch('/me', {
+        credentials: 'include'
+      });
       const meData = await meRes.json();
       if (!meData.id) {
         alert('로그인이 필요합니다.');
@@ -47,7 +49,11 @@ if (document.getElementById('uploadForm')) {
     if (memoInput) {
       formData.set('memo', memoInput.value);
     }
-    const res = await fetch('/upload', { method: 'POST', body: formData });
+    const res = await fetch('/upload', { 
+      method: 'POST', 
+      body: formData,
+      credentials: 'include'
+    });
     const data = await res.json();
     let imgTag = '';
     if (file) {
@@ -379,13 +385,17 @@ async function login(id, pw) {
   const res = await fetch('/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, pw })
+    body: JSON.stringify({ id, pw }),
+    credentials: 'include'
   });
   if (!res.ok) throw new Error((await res.json()).error || '로그인 실패');
   return res.json();
 }
 async function logout() {
-  await fetch('/logout', { method: 'POST' });
+  await fetch('/logout', { 
+    method: 'POST',
+    credentials: 'include'
+  });
   location.href = 'login.html';
 }
 async function registerUser(id, pw) {
@@ -398,9 +408,10 @@ async function registerUser(id, pw) {
   return res.json();
 }
 async function checkSession() {
-  // 대시보드 접근 시 세션 체크
   try {
-    const res = await fetch('/dashboard-data');
+    const res = await fetch('/dashboard-data', {
+      credentials: 'include'
+    });
     if (res.status === 401) throw new Error('로그인 필요');
     return true;
   } catch {
