@@ -55,58 +55,6 @@ app.post('/upload', upload.single('image'), (req, res) => {
   saveImages();
   const imageUrl = `${req.protocol}://${req.get('host')}/image/${id}${ext}`;
   res.json({ url: imageUrl, memo });
-});tion.remoteAddress;
-  const ip = Array.isArray(ipRaw) ? ipRaw[0] : (ipRaw || '').split(',')[0].trim();
-  const ua = req.headers['user-agent'] || '';
-  const isBotIp = botIpPatterns.some(re => re.test(ip));
-  const isBotUa = botUaPatterns.some(re => re.test(ua));
-  const referer = req.headers['referer'] || '';
-  const isRealBlog =
-    referer &&
-    !referer.includes('/dashboard') &&
-    !referer.includes('/image/') &&
-    !referer.includes('onrender.com') &&
-    !/\/(write|postwrite|edit|compose|admin|preview|PostWriteForm)/i.test(referer);
-
-  // IP + User-Agent 조합으로 방문자 구분
-  const visitorKey = ip + '|' + ua;
-
-  if (!isDashboard && !isBotIp && !isBotUa && isRealBlog) {
-    const now = getKSTString();
-    let ipInfo = img.ips.find(x => x.visitorKey === visitorKey);
-    let shouldCount = true;
-    if (ipInfo) {
-      const last = new Date(ipInfo.lastVisit.replace(/-/g, '/'));
-      const curr = new Date(now.replace(/-/g, '/'));
-      const diffSec = (curr - last) / 1000;
-      if (diffSec < 60) shouldCount = false;
-    }
-    if (shouldCount) {
-      img.views++;
-      if (!ipInfo) {
-        img.ips.push({ ip, ua, visitorKey, count: 1, firstVisit: now, lastVisit: now });
-      } else {
-        ipInfo.count++;
-        ipInfo.lastVisit = now;
-      }
-      let refInfo = img.referers.find(x => x.referer === referer);
-      if (!refInfo) {
-        img.referers.push({ referer, count: 1, firstVisit: now, lastVisit: now });
-      } else {
-        refInfo.count++;
-        refInfo.lastVisit = now;
-      }
-    }
-  }
-  // Content-Type 지정
-  const ext = path.extname(img.filename).toLowerCase();
-  let contentType = 'application/octet-stream';
-  if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-  else if (ext === '.png') contentType = 'image/png';
-  else if (ext === '.gif') contentType = 'image/gif';
-  else if (ext === '.webp') contentType = 'image/webp';
-  res.set('Content-Type', contentType);
-  res.sendFile(path.join(UPLOADS_DIR, img.filename));
 });
 
 app.get('/dashboard-data', (req, res) => {

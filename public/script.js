@@ -89,215 +89,247 @@ if (document.getElementById('multiMemoBtn')) {
 }
 // dashboard.html
 if (document.getElementById('dashboard-tbody')) {
-  fetch('/dashboard-data')
-    .then(res => res.json())
-    .then(data => {
-      // 최근에 만든 이미지가 제일 위에 오도록 내림차순 정렬 (id 기준)
-      data.sort((a, b) => {
-        // id가 숫자형이면 숫자 내림차순, 아니면 filename의 숫자 부분으로 비교
-        const aid = Number(a.id || a.filename?.replace(/\D/g, ''));
-        const bid = Number(b.id || b.filename?.replace(/\D/g, ''));
-        return bid - aid;
-      });
-      const tbody = document.getElementById('dashboard-tbody');
-      tbody.innerHTML = data.map((img, idx) => {
-        const fullUrl = `${location.origin}${img.url}`;
-        const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
-        // 블로그(가장 많이 불러간 referer, 실제 글 주소만)
-        let mainReferer = '-';
-        if (img.referers && img.referers.length > 0) {
-          const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
-          if (realReferers.length > 0) {
-            mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link'>${realReferers[0].referer}</a>`;
-          }
-        }
-        return `
-          <tr data-id="${img.url.split('/').pop()}">
-            <td><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}"></td>
-            <td><a href="${fullUrl}" target="_blank" class="dashboard-url-link">${fullUrl}</a></td>
-            <td>${mainReferer}</td>
-            <td style="word-break:break-all;">${img.memo || '-'}</td>
-            <td style="color:#19c37d;font-weight:700;">${img.owner || '-'}</td>
-            <td><button class="dashboard-btn-blue dashboard-detail-btn dashboard-btn-wide" data-idx="${idx}">보기</button></td>
-            <td><button class="dashboard-btn-red dashboard-btn-wide dashboard-delete-btn">삭제</button></td>
-          </tr>
-        `;
-      }).join('');
-      // 삭제 버튼 이벤트
-      document.querySelectorAll('.dashboard-delete-btn').forEach(btn => {
-        btn.onclick = function(e) {
-          e.stopPropagation();
-          const row = this.closest('tr');
-          const id = row.getAttribute('data-id');
-          if (confirm('정말 삭제하시겠습니까?')) {
-            fetch(`/image/${id}`, { method: 'DELETE' })
-              .then(res => res.json())
-              .then(r => { if (r.success) row.remove(); });
-          }
-        };
-      });
-      // 상세보기 버튼 이벤트
-      document.querySelectorAll('.dashboard-detail-btn').forEach(btn => {
-        btn.onclick = function(e) {
-          e.stopPropagation();
-          const idx = this.getAttribute('data-idx');
-          const img = data[idx];
-          function formatDate(dateStr) {
-            // 오전/오후가 포함된 문자열이면 24시간제로 변환
-            if (/오전|오후/.test(dateStr)) {
-              let [date, time] = dateStr.split(' ');
-              let [hh, mm, ss] = time.split(':');
-              let hour = parseInt(hh, 10);
-              if (dateStr.includes('오후') && hour < 12) hour += 12;
-              if (dateStr.includes('오전') && hour === 12) hour = 0;
-              return `${date} ${String(hour).padStart(2, '0')}:${mm}:${ss}`;
-            }
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return '-';
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth()+1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const hh = String(d.getHours()).padStart(2, '0'); // 24시간제
-            const min = String(d.getMinutes()).padStart(2, '0');
-            const ss = String(d.getSeconds()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-          }
-          // 블로그 referer 표
-          let refTable = '';
+  document.body.style.display = 'none';
+  checkSession().then(isLoggedIn => {
+    if (!isLoggedIn) return;
+    // 로그인 상태면 대시보드 렌더링 코드 실행
+    document.body.style.display = '';
+    // 대시보드 데이터 로드 및 이벤트 바인딩 코드 시작
+    fetch('/dashboard-data', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        // 최근에 만든 이미지가 제일 위에 오도록 내림차순 정렬 (id 기준)
+        data.sort((a, b) => {
+          const aid = Number(a.id || a.filename?.replace(/\D/g, ''));
+          const bid = Number(b.id || b.filename?.replace(/\D/g, ''));
+          return bid - aid;
+        });
+        const tbody = document.getElementById('dashboard-tbody');
+        tbody.innerHTML = data.map((img, idx) => {
+          const fullUrl = `${location.origin}${img.url}`;
+          const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
+          let mainReferer = '-';
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
-              const ref = realReferers[0];
-              refTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th>블로그 주소</th><th>최초</th></tr>` +
-                `<tr><td style='word-break:break-all;'><a href='${ref.referer}' target='_blank' class='dashboard-blog-link'>${ref.referer}</a></td><td>${formatDate(ref.firstVisit)}</td></tr>` +
-                '</table></div>';
+              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link'>${realReferers[0].referer}</a>`;
+            }
+          }
+          return `
+            <tr data-id="${img.url.split('/').pop()}">
+              <td><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}"></td>
+              <td><a href="${fullUrl}" target="_blank" class="dashboard-url-link">${fullUrl}</a></td>
+              <td>${mainReferer}</td>
+              <td style="word-break:break-all;">${img.memo || '-'}</td>
+              <td style="color:#19c37d;font-weight:700;">${img.owner || '-'}</td>
+              <td><button class="dashboard-btn-blue dashboard-detail-btn dashboard-btn-wide" data-idx="${idx}">보기</button></td>
+              <td><button class="dashboard-btn-red dashboard-btn-wide dashboard-delete-btn">삭제</button></td>
+            </tr>
+          `;
+        }).join('');
+        // 삭제 버튼 이벤트
+        document.querySelectorAll('.dashboard-delete-btn').forEach(btn => {
+          btn.onclick = function(e) {
+            e.stopPropagation();
+            const row = this.closest('tr');
+            const id = row.getAttribute('data-id');
+            if (confirm('정말 삭제하시겠습니까?')) {
+              fetch(`/image/${id}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(r => { if (r.success) row.remove(); });
+            }
+          };
+        });
+        // 상세보기 버튼 이벤트
+        document.querySelectorAll('.dashboard-detail-btn').forEach(btn => {
+          btn.onclick = function(e) {
+            e.stopPropagation();
+            const idx = this.getAttribute('data-idx');
+            const img = data[idx];
+            function formatDate(dateStr) {
+              // 오전/오후가 포함된 문자열이면 24시간제로 변환
+              if (/오전|오후/.test(dateStr)) {
+                let [date, time] = dateStr.split(' ');
+                let [hh, mm, ss] = time.split(':');
+                let hour = parseInt(hh, 10);
+                if (dateStr.includes('오후') && hour < 12) hour += 12;
+                if (dateStr.includes('오전') && hour === 12) hour = 0;
+                return `${date} ${String(hour).padStart(2, '0')}:${mm}:${ss}`;
+              }
+              const d = new Date(dateStr);
+              if (isNaN(d.getTime())) return '-';
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth()+1).padStart(2, '0');
+              const dd = String(d.getDate()).padStart(2, '0');
+              const hh = String(d.getHours()).padStart(2, '0'); // 24시간제
+              const min = String(d.getMinutes()).padStart(2, '0');
+              const ss = String(d.getSeconds()).padStart(2, '0');
+              return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+            }
+            // 블로그 referer 표
+            let refTable = '';
+            if (img.referers && img.referers.length > 0) {
+              const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
+              if (realReferers.length > 0) {
+                const ref = realReferers[0];
+                refTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th>블로그 주소</th><th>최초</th></tr>` +
+                  `<tr><td style='word-break:break-all;'><a href='${ref.referer}' target='_blank' class='dashboard-blog-link'>${ref.referer}</a></td><td>${formatDate(ref.firstVisit)}</td></tr>` +
+                  '</table></div>';
+              } else {
+                refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
+              }
             } else {
               refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
             }
-          } else {
-            refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
-          }
-          let ipTable = '';
-          if (img.ips && img.ips.length > 0) {
-            ipTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th style="white-space:nowrap;">IP</th><th style="white-space:nowrap;">User-Agent</th><th style="white-space:nowrap;">방문수</th></tr>` +
-              img.ips.map(ipinfo => `<tr><td style="white-space:normal;word-break:break-all;">${ipinfo.ip}</td><td style='font-size:0.93em;word-break:break-all;color:#888;white-space:normal;'>${ipinfo.ua || '-'}</td><td style="white-space:normal;">${ipinfo.count}</td></tr>`).join('') + '</table></div>';
-          } else {
-            ipTable = `<div class='modal-table-wrap'><div style="color:#888;padding:18px 0;text-align:center;">방문 기록 없음</div></div>`;
-          }
-          document.getElementById('modal-body').innerHTML =
-            `<div class='modal-title-row modal-title-row-main' style='flex-direction:column;align-items:flex-start;gap:0;'>
-              <span class='modal-title-filename' style='font-size:1.13rem;font-weight:bold;color:#1877f2;'>${img.filename || ''}
-              <button id='excel-download-btn' class='dashboard-btn-blue' style='font-size:0.97rem;margin-top:20px; margin-bottom:15px; padding:6px 18px;'>엑셀 다운로드</button></span>
-              
-            </div>
-            <div class='modal-section modal-section-main'>
-              <div class='modal-row'><span class='modal-label'>전체 조회수</span><span class='modal-value'>${img.views}</span></div>
-              <div class='modal-row'><span class='modal-label'>고유 방문자</span><span class='modal-value'>${img.unique}</span></div>
-            </div>
-            <div class='modal-section'>
-              <div class='modal-section-title'>블로그 유입 기록</div>
-              ${refTable}
-            </div>
-            <div class='modal-section'>
-              <div class='modal-section-title'>IP/UA 방문 기록</div>
-              ${ipTable}
-            </div>`;
-          // 모달 가로 넓게, 스크롤 적용
-          const modalBody = document.getElementById('modal-body');
-          if (modalBody) {
-            modalBody.style.maxHeight = '60vh';
-            modalBody.style.overflowY = 'auto';
-            modalBody.parentElement.style.width = '720px';
-            modalBody.parentElement.style.minWidth = '700px';
-          }
-          document.getElementById('modal').style.display = 'flex';
-          // 엑셀 다운로드 기능
-          document.getElementById('excel-download-btn').onclick = function() {
-            // xlsx 라이브러리 로드
-            if (!window.XLSX) {
-              const script = document.createElement('script');
-              script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-              script.onload = () => downloadExcel();
-              document.body.appendChild(script);
+            let ipTable = '';
+            if (img.ips && img.ips.length > 0) {
+              ipTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th style="white-space:nowrap;">IP</th><th style="white-space:nowrap;">User-Agent</th><th style="white-space:nowrap;">방문수</th></tr>` +
+                img.ips.map(ipinfo => `<tr><td style="white-space:normal;word-break:break-all;">${ipinfo.ip}</td><td style='font-size:0.93em;word-break:break-all;color:#888;white-space:normal;'>${ipinfo.ua || '-'}</td><td style="white-space:normal;">${ipinfo.count}</td></tr>`).join('') + '</table></div>';
             } else {
-              downloadExcel();
+              ipTable = `<div class='modal-table-wrap'><div style="color:#888;padding:18px 0;text-align:center;">방문 기록 없음</div></div>`;
             }
-            function downloadExcel() {
-              // 블로그 표 데이터 (블로그 주소 / 전체 방문 수 / 고유 방문자 수 / 블로그 작성일)
-              const blogRows = [];
-              if (img.referers && img.referers.length > 0) {
-                // 전체 방문수, 고유 방문자수, 작성일(최초 방문일)
-                const totalVisit = img.referers.reduce((sum, ref) => sum + (ref.count || 0), 0);
-                const uniqueVisit = img.ips ? img.ips.length : 0;
-                const firstVisit = img.referers.reduce((min, ref) => {
-                  if (!min) return ref.firstVisit;
-                  return new Date(ref.firstVisit) < new Date(min) ? ref.firstVisit : min;
-                }, null);
-                blogRows.push({
-                  '블로그 주소': img.referers[0].referer,
-                  '전체 방문 수': totalVisit,
-                  '고유 방문자 수': uniqueVisit,
-                  '블로그 작성일': formatDate(firstVisit)
-                });
+            document.getElementById('modal-body').innerHTML =
+              `<div class='modal-title-row modal-title-row-main' style='flex-direction:column;align-items:flex-start;gap:0;'>
+                <span class='modal-title-filename' style='font-size:1.13rem;font-weight:bold;color:#1877f2;'>${img.filename || ''}
+                <button id='excel-download-btn' class='dashboard-btn-blue' style='font-size:0.97rem;margin-top:20px; margin-bottom:15px; padding:6px 18px;'>엑셀 다운로드</button></span>
+                
+              </div>
+              <div class='modal-section modal-section-main'>
+                <div class='modal-row'><span class='modal-label'>전체 조회수</span><span class='modal-value'>${img.views}</span></div>
+                <div class='modal-row'><span class='modal-label'>고유 방문자</span><span class='modal-value'>${img.unique}</span></div>
+              </div>
+              <div class='modal-section'>
+                <div class='modal-section-title'>블로그 유입 기록</div>
+                ${refTable}
+              </div>
+              <div class='modal-section'>
+                <div class='modal-section-title'>IP/UA 방문 기록</div>
+                ${ipTable}
+              </div>`;
+            // 모달 가로 넓게, 스크롤 적용
+            const modalBody = document.getElementById('modal-body');
+            if (modalBody) {
+              modalBody.style.maxHeight = '60vh';
+              modalBody.style.overflowY = 'auto';
+              modalBody.parentElement.style.width = '720px';
+              modalBody.parentElement.style.minWidth = '700px';
+            }
+            document.getElementById('modal').style.display = 'flex';
+            // 엑셀 다운로드 기능
+            document.getElementById('excel-download-btn').onclick = function() {
+              // xlsx 라이브러리 로드
+              if (!window.XLSX) {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                script.onload = () => downloadExcel();
+                document.body.appendChild(script);
+              } else {
+                downloadExcel();
               }
-              // User IP 표 데이터 (IP / User-Agent / 방문 수 / 최초 방문일자)
-              const ipRows = [];
-              if (img.ips && img.ips.length > 0) {
-                img.ips.forEach(ipinfo => {
-                  ipRows.push({
-                    'IP': ipinfo.ip,
-                    'User-Agent': ipinfo.ua || '-',
-                    '방문 수': ipinfo.count,
-                    '최초 방문일자': formatDate(ipinfo.firstVisit)
+              function downloadExcel() {
+                // 블로그 표 데이터 (블로그 주소 / 전체 방문 수 / 고유 방문자 수 / 블로그 작성일)
+                const blogRows = [];
+                if (img.referers && img.referers.length > 0) {
+                  // 전체 방문수, 고유 방문자수, 작성일(최초 방문일)
+                  const totalVisit = img.referers.reduce((sum, ref) => sum + (ref.count || 0), 0);
+                  const uniqueVisit = img.ips ? img.ips.length : 0;
+                  const firstVisit = img.referers.reduce((min, ref) => {
+                    if (!min) return ref.firstVisit;
+                    return new Date(ref.firstVisit) < new Date(min) ? ref.firstVisit : min;
+                  }, null);
+                  blogRows.push({
+                    '블로그 주소': img.referers[0].referer,
+                    '전체 방문 수': totalVisit,
+                    '고유 방문자 수': uniqueVisit,
+                    '블로그 작성일': formatDate(firstVisit)
                   });
-                });
-              }
-              // 워크북 생성
-              const wb = XLSX.utils.book_new();
-              // 스타일 함수: 헤더에 연보라색, bold, 가운데 정렬
-              function styleHeader(ws, ncols) {
-                for (let c = 0; c < ncols; c++) {
-                  const cell = ws[XLSX.utils.encode_cell({r:0, c})];
-                  if (cell) {
-                    cell.s = {
-                      fill: { fgColor: { rgb: 'D1C4E9' } },
-                      font: { bold: true },
-                      alignment: { horizontal: 'center', vertical: 'center' }
-                    };
+                }
+                // User IP 표 데이터 (IP / User-Agent / 방문 수 / 최초 방문일자)
+                const ipRows = [];
+                if (img.ips && img.ips.length > 0) {
+                  img.ips.forEach(ipinfo => {
+                    ipRows.push({
+                      'IP': ipinfo.ip,
+                      'User-Agent': ipinfo.ua || '-',
+                      '방문 수': ipinfo.count,
+                      '최초 방문일자': formatDate(ipinfo.firstVisit)
+                    });
+                  });
+                }
+                // 워크북 생성
+                const wb = XLSX.utils.book_new();
+                // 스타일 함수: 헤더에 연보라색, bold, 가운데 정렬
+                function styleHeader(ws, ncols) {
+                  for (let c = 0; c < ncols; c++) {
+                    const cell = ws[XLSX.utils.encode_cell({r:0, c})];
+                    if (cell) {
+                      cell.s = {
+                        fill: { fgColor: { rgb: 'D1C4E9' } },
+                        font: { bold: true },
+                        alignment: { horizontal: 'center', vertical: 'center' }
+                      };
+                    }
                   }
                 }
+                // 블로그 시트
+                if (blogRows.length > 0) {
+                  const ws1 = XLSX.utils.json_to_sheet(blogRows, {cellStyles:true});
+                  ws1['!cols'] = [ { wch: 40 }, { wch: 16 }, { wch: 16 }, { wch: 22 } ];
+                  styleHeader(ws1, 4);
+                  XLSX.utils.book_append_sheet(wb, ws1, '블로그');
+                }
+                // User IP 시트
+                if (ipRows.length > 0) {
+                  const ws2 = XLSX.utils.json_to_sheet(ipRows, {cellStyles:true});
+                  ws2['!cols'] = [ { wch: 18 }, { wch: 36 }, { wch: 12 }, { wch: 22 } ];
+                  styleHeader(ws2, 4);
+                  XLSX.utils.book_append_sheet(wb, ws2, 'User IP');
+                }
+                XLSX.writeFile(wb, `상세정보_${img.filename || ''}.xlsx`);
               }
-              // 블로그 시트
-              if (blogRows.length > 0) {
-                const ws1 = XLSX.utils.json_to_sheet(blogRows, {cellStyles:true});
-                ws1['!cols'] = [ { wch: 40 }, { wch: 16 }, { wch: 16 }, { wch: 22 } ];
-                styleHeader(ws1, 4);
-                XLSX.utils.book_append_sheet(wb, ws1, '블로그');
-              }
-              // User IP 시트
-              if (ipRows.length > 0) {
-                const ws2 = XLSX.utils.json_to_sheet(ipRows, {cellStyles:true});
-                ws2['!cols'] = [ { wch: 18 }, { wch: 36 }, { wch: 12 }, { wch: 22 } ];
-                styleHeader(ws2, 4);
-                XLSX.utils.book_append_sheet(wb, ws2, 'User IP');
-              }
-              XLSX.writeFile(wb, `상세정보_${img.filename || ''}.xlsx`);
-            }
+            };
           };
-        };
+        });
+        // 이미지 미리보기 모달 이벤트
+        document.querySelectorAll('.dashboard-img-thumb').forEach(imgEl => {
+          imgEl.onclick = function(e) {
+            e.stopPropagation();
+            const url = this.getAttribute('data-img-url');
+            const modal = document.getElementById('img-modal');
+            const modalImg = document.getElementById('img-modal-img');
+            modalImg.src = url;
+            modal.style.display = 'flex';
+          };
+        });
+        // 대시보드 사용자명 표시 등 기타 코드도 이 블록 안에 위치
+        fetch('/me', { credentials: 'include' })
+          .then(res => res.json())
+          .then(data => {
+            if (data.id && document.getElementById('userInfo')) {
+              if (data.role === 'admin') {
+                document.getElementById('userInfo').innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700;">' + data.id + '</span>';
+                const oldBtn = document.getElementById('registerUserBtn');
+                if (oldBtn) oldBtn.remove();
+                const headerBtns = document.querySelector('.dashboard-header > div:last-child');
+                const logoutBtn = document.getElementById('logoutBtn');
+                const btn = document.createElement('button');
+                btn.id = 'registerUserBtn';
+                btn.className = 'dashboard-btn-blue';
+                btn.style = 'background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;';
+                btn.innerText = '사용자 등록';
+                btn.onclick = () => location.href = 'register.html';
+                headerBtns.insertBefore(btn, logoutBtn);
+              } else {
+                document.getElementById('userInfo').innerText = data.id;
+              }
+            }
+          })
+          .catch(err => {
+            console.error('Error fetching user info:', err);
+            location.href = 'login.html';
+          });
       });
-      // 이미지 미리보기 모달 이벤트
-      document.querySelectorAll('.dashboard-img-thumb').forEach(imgEl => {
-        imgEl.onclick = function(e) {
-          e.stopPropagation();
-          const url = this.getAttribute('data-img-url');
-          const modal = document.getElementById('img-modal');
-          const modalImg = document.getElementById('img-modal-img');
-          modalImg.src = url;
-          modal.style.display = 'flex';
-        };
-      });
-    });
+  });
 }
 // 페이지 로드 시 이미지 미리보기 모달 닫기 이벤트 한 번만 등록
 if (document.readyState === 'loading') {
@@ -486,52 +518,6 @@ if (document.getElementById('loginForm')) {
       }
     };
   }
-}
-// 대시보드 접근 시 세션 체크 및 사용자명 표시
-if (location.pathname.endsWith('dashboard.html')) {
-  // 페이지 로딩 전에 세션 체크
-  document.body.style.display = 'none';  // 페이지 숨기기
-  
-  checkSession().then(isLoggedIn => {
-    if (!isLoggedIn) return;  // checkSession에서 이미 리다이렉트 처리됨
-    
-    // 로그인 상태 확인 후 사용자 정보 가져오기
-    fetch('/me', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.id && document.getElementById('userInfo')) {
-          if (data.role === 'admin') {
-            document.getElementById('userInfo').innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700;">' + data.id + '</span>';
-            // Remove existing button if any
-            const oldBtn = document.getElementById('registerUserBtn');
-            if (oldBtn) oldBtn.remove();
-            // Insert after 홈으로, before 로그아웃
-            const headerBtns = document.querySelector('.dashboard-header > div:last-child');
-            const homeBtn = headerBtns.querySelector('button[onclick*="index.html"]');
-            const logoutBtn = document.getElementById('logoutBtn');
-            const btn = document.createElement('button');
-            btn.id = 'registerUserBtn';
-            btn.className = 'dashboard-btn-blue';
-            btn.style = 'background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;';
-            btn.innerText = '사용자 등록';
-            btn.onclick = () => location.href = 'register.html';
-            headerBtns.insertBefore(btn, logoutBtn);
-          } else {
-            document.getElementById('userInfo').innerText = data.id;
-          }
-        }
-        // 모든 준비가 완료되면 페이지 표시
-        document.body.style.display = '';
-      })
-      .catch(err => {
-        console.error('Error fetching user info:', err);
-        location.href = 'login.html';
-      });
-  });
-}
-// 로그아웃 버튼이 있다면 이벤트 연결 (예시)
-if (document.getElementById('logoutBtn')) {
-  document.getElementById('logoutBtn').onclick = logout;
 }
 // 관리자 페이지(admin.html) 동작
 if (location.pathname.endsWith('admin.html')) {
