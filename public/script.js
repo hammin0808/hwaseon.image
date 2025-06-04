@@ -394,9 +394,13 @@ async function checkSession() {
     const res = await fetch('/dashboard-data', {
       credentials: 'include'
     });
-    if (res.status === 401) throw new Error('로그인 필요');
+    if (res.status === 401) {
+      location.href = 'login.html';
+      return false;
+    }
     return true;
-  } catch {
+  } catch (err) {
+    console.error('Session check failed:', err);
     location.href = 'login.html';
     return false;
   }
@@ -485,29 +489,44 @@ if (document.getElementById('loginForm')) {
 }
 // 대시보드 접근 시 세션 체크 및 사용자명 표시
 if (location.pathname.endsWith('dashboard.html')) {
-  checkSession();
-  fetch('/me').then(res => res.json()).then(data => {
-    if (data.id && document.getElementById('userInfo')) {
-      if (data.role === 'admin') {
-        document.getElementById('userInfo').innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700;">' + data.id + '</span>';
-        // Remove existing button if any
-        const oldBtn = document.getElementById('registerUserBtn');
-        if (oldBtn) oldBtn.remove();
-        // Insert after 홈으로, before 로그아웃
-        const headerBtns = document.querySelector('.dashboard-header > div:last-child');
-        const homeBtn = headerBtns.querySelector('button[onclick*="index.html"]');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const btn = document.createElement('button');
-        btn.id = 'registerUserBtn';
-        btn.className = 'dashboard-btn-blue';
-        btn.style = 'background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;';
-        btn.innerText = '사용자 등록';
-        btn.onclick = () => location.href = 'register.html';
-        headerBtns.insertBefore(btn, logoutBtn);
-      } else {
-        document.getElementById('userInfo').innerText = data.id;
-      }
-    }
+  // 페이지 로딩 전에 세션 체크
+  document.body.style.display = 'none';  // 페이지 숨기기
+  
+  checkSession().then(isLoggedIn => {
+    if (!isLoggedIn) return;  // checkSession에서 이미 리다이렉트 처리됨
+    
+    // 로그인 상태 확인 후 사용자 정보 가져오기
+    fetch('/me', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.id && document.getElementById('userInfo')) {
+          if (data.role === 'admin') {
+            document.getElementById('userInfo').innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700;">' + data.id + '</span>';
+            // Remove existing button if any
+            const oldBtn = document.getElementById('registerUserBtn');
+            if (oldBtn) oldBtn.remove();
+            // Insert after 홈으로, before 로그아웃
+            const headerBtns = document.querySelector('.dashboard-header > div:last-child');
+            const homeBtn = headerBtns.querySelector('button[onclick*="index.html"]');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const btn = document.createElement('button');
+            btn.id = 'registerUserBtn';
+            btn.className = 'dashboard-btn-blue';
+            btn.style = 'background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;';
+            btn.innerText = '사용자 등록';
+            btn.onclick = () => location.href = 'register.html';
+            headerBtns.insertBefore(btn, logoutBtn);
+          } else {
+            document.getElementById('userInfo').innerText = data.id;
+          }
+        }
+        // 모든 준비가 완료되면 페이지 표시
+        document.body.style.display = '';
+      })
+      .catch(err => {
+        console.error('Error fetching user info:', err);
+        location.href = 'login.html';
+      });
   });
 }
 // 로그아웃 버튼이 있다면 이벤트 연결 (예시)

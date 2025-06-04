@@ -11,18 +11,12 @@ app.use(express.static('public'));
 app.use(express.json());
 
 const DATA_DIR = "/data"
+const DATA_DIR2 = process.env.DATA_DIR || '/data';
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
-const USERS_JSON = path.join(DATA_DIR, 'users.json');
+const USERS_JSON = path.join(DATA_DIR2, 'users.json');
 
-console.log('=== Server Startup Debug Info ===');
-console.log('DATA_DIR:', DATA_DIR);
-console.log('UPLOADS_DIR:', UPLOADS_DIR);
-console.log('IMAGES_JSON:', IMAGES_JSON);
-console.log('USERS_JSON:', USERS_JSON);
-console.log('Directory exists:', fs.existsSync(DATA_DIR));
-console.log('Users file exists:', fs.existsSync(USERS_JSON));
-console.log('Images file exists:', fs.existsSync(IMAGES_JSON));
+
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   console.log('Creating UPLOADS_DIR:', UPLOADS_DIR);
