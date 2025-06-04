@@ -112,6 +112,7 @@ if (document.getElementById('dashboard-tbody')) {
             <td><a href="${fullUrl}" target="_blank" class="dashboard-url-link">${fullUrl}</a></td>
             <td>${mainReferer}</td>
             <td style="word-break:break-all;">${img.memo || '-'}</td>
+            <td style="color:#19c37d;font-weight:700;">${img.owner || '-'}</td>
             <td><button class="dashboard-btn-blue dashboard-detail-btn dashboard-btn-wide" data-idx="${idx}">보기</button></td>
             <td><button class="dashboard-btn-red dashboard-btn-wide dashboard-delete-btn">삭제</button></td>
           </tr>
@@ -185,7 +186,6 @@ if (document.getElementById('dashboard-tbody')) {
               
             </div>
             <div class='modal-section modal-section-main'>
-              <div class='modal-row'><span class='modal-label'>업로드일</span><span class='modal-value'>${formatDate(img.createdAt)}</span></div>
               <div class='modal-row'><span class='modal-label'>전체 조회수</span><span class='modal-value'>${img.views}</span></div>
               <div class='modal-row'><span class='modal-label'>고유 방문자</span><span class='modal-value'>${img.unique}</span></div>
             </div>
@@ -356,4 +356,216 @@ if (modalCloseBtn) {
   modalCloseBtn.onclick = function() {
     document.getElementById('modal').style.display = 'none';
   };
+}
+// 로그인/로그아웃/세션/회원가입 관련
+async function login(id, pw) {
+  const res = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, pw })
+  });
+  if (!res.ok) throw new Error((await res.json()).error || '로그인 실패');
+  return res.json();
+}
+async function logout() {
+  await fetch('/logout', { method: 'POST' });
+  location.href = 'login.html';
+}
+async function registerUser(id, pw) {
+  const res = await fetch('/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, pw })
+  });
+  if (!res.ok) throw new Error((await res.json()).error || '생성 실패');
+  return res.json();
+}
+async function checkSession() {
+  // 대시보드 접근 시 세션 체크
+  try {
+    const res = await fetch('/dashboard-data');
+    if (res.status === 401) throw new Error('로그인 필요');
+    return true;
+  } catch {
+    location.href = 'login.html';
+    return false;
+  }
+}
+// 로그인 페이지 동작
+if (document.getElementById('loginForm')) {
+  let isAdmin = false;
+  const userTab = document.getElementById('userTab');
+  const adminTab = document.getElementById('adminTab');
+  const loginForm = document.getElementById('loginForm');
+  const loginError = document.getElementById('loginError');
+  const adminCreateSection = document.getElementById('adminCreateSection');
+  const adminCreateForm = document.getElementById('adminCreateForm');
+  const adminCreateError = document.getElementById('adminCreateError');
+  const adminCreateSuccess = document.getElementById('adminCreateSuccess');
+  const userFields = document.getElementById('userFields');
+  const loginId = document.getElementById('loginId');
+  const loginPw = document.getElementById('loginPw');
+
+  userTab.onclick = () => {
+    isAdmin = false;
+    userTab.classList.add('active');
+    adminTab.classList.remove('active');
+    adminCreateSection.style.display = 'none';
+    userFields.style.display = '';
+    loginId.required = true;
+    loginPw.value = '';
+    loginId.value = '';
+    loginPw.placeholder = '비밀번호를 입력하세요';
+    loginPw.setAttribute('autocomplete', 'current-password');
+  };
+  adminTab.onclick = () => {
+    isAdmin = true;
+    adminTab.classList.add('active');
+    userTab.classList.remove('active');
+    adminCreateSection.style.display = 'block';
+    userFields.style.display = 'none';
+    loginId.required = false;
+    loginId.value = '';
+    loginPw.value = '';
+    loginPw.placeholder = '비밀번호(hwaes...@00)를 입력하세요';
+    loginPw.setAttribute('autocomplete', 'current-password');
+  };
+  loginForm.onsubmit = async (e) => {
+    e.preventDefault();
+    loginError.style.display = 'none';
+    let id, pw;
+    if (isAdmin) {
+      id = 'hwaseon';
+      pw = loginPw.value;
+    } else {
+      id = loginId.value.trim();
+      pw = loginPw.value;
+    }
+    try {
+      const result = await login(id, pw);
+      if (isAdmin && result.role !== 'admin') throw new Error('관리자 계정이 아닙니다.');
+      if (isAdmin) {
+        location.href = 'register.html';
+      } else {
+        location.href = 'dashboard.html';
+      }
+    } catch (err) {
+      loginError.innerText = err.message;
+      loginError.style.display = 'block';
+    }
+  };
+  if (adminCreateForm) {
+    adminCreateForm.onsubmit = async (e) => {
+      e.preventDefault();
+      adminCreateError.style.display = 'none';
+      adminCreateSuccess.style.display = 'none';
+      const id = document.getElementById('newUserId').value.trim();
+      const pw = document.getElementById('newUserPw').value;
+      try {
+        await registerUser(id, pw);
+        adminCreateSuccess.innerText = '사용자 생성 성공!';
+        adminCreateSuccess.style.display = 'block';
+        adminCreateForm.reset();
+      } catch (err) {
+        adminCreateError.innerText = err.message;
+        adminCreateError.style.display = 'block';
+      }
+    };
+  }
+}
+// 대시보드 접근 시 세션 체크 및 사용자명 표시
+if (location.pathname.endsWith('dashboard.html')) {
+  checkSession();
+  fetch('/me').then(res => res.json()).then(data => {
+    if (data.id && document.getElementById('userInfo')) {
+      if (data.role === 'admin') {
+        document.getElementById('userInfo').innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700;">' + data.id + '</span>';
+        // Remove existing button if any
+        const oldBtn = document.getElementById('registerUserBtn');
+        if (oldBtn) oldBtn.remove();
+        // Insert after 홈으로, before 로그아웃
+        const headerBtns = document.querySelector('.dashboard-header > div:last-child');
+        const homeBtn = headerBtns.querySelector('button[onclick*="index.html"]');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const btn = document.createElement('button');
+        btn.id = 'registerUserBtn';
+        btn.className = 'dashboard-btn-blue';
+        btn.style = 'background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;';
+        btn.innerText = '사용자 등록';
+        btn.onclick = () => location.href = 'register.html';
+        headerBtns.insertBefore(btn, logoutBtn);
+      } else {
+        document.getElementById('userInfo').innerText = data.id;
+      }
+    }
+  });
+}
+// 로그아웃 버튼이 있다면 이벤트 연결 (예시)
+if (document.getElementById('logoutBtn')) {
+  document.getElementById('logoutBtn').onclick = logout;
+}
+// 관리자 페이지(admin.html) 동작
+if (location.pathname.endsWith('admin.html')) {
+  // 관리자 인증 및 사용자명 표시
+  fetch('/me').then(res => res.json()).then(data => {
+    if (!data.id || data.role !== 'admin') {
+      location.href = 'login.html';
+      return;
+    }
+    document.getElementById('adminUserInfo').innerText = `${data.id}님`;
+  });
+  // 사용자 목록 렌더링
+  function renderUserTable() {
+    fetch('/users').then(res => res.json()).then(users => {
+      const tbody = document.getElementById('adminUserTableBody');
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.createdAt || '-'}</td>
+          <td>${u.role === 'admin' ? '<span class="admin-role-admin">관리자</span>' : '일반사용자'}</td>
+          <td>${u.role === 'admin' ? '' : `<button class='admin-delete-btn' data-id='${u.id}'>삭제</button>`}</td>
+        </tr>
+      `).join('');
+      // 삭제 버튼 이벤트
+      document.querySelectorAll('.admin-delete-btn').forEach(btn => {
+        btn.onclick = function() {
+          const id = this.getAttribute('data-id');
+          if (confirm('정말 삭제하시겠습니까?')) {
+            fetch(`/users/${id}`, { method: 'DELETE' })
+              .then(res => res.json())
+              .then(r => { if (r.success) renderUserTable(); });
+          }
+        };
+      });
+    });
+  }
+  renderUserTable();
+  // 사용자 생성
+  const adminUserForm = document.getElementById('adminUserForm');
+  const adminUserFormError = document.getElementById('adminUserFormError');
+  const adminUserFormSuccess = document.getElementById('adminUserFormSuccess');
+  adminUserForm.onsubmit = async (e) => {
+    e.preventDefault();
+    adminUserFormError.style.display = 'none';
+    adminUserFormSuccess.style.display = 'none';
+    const id = document.getElementById('adminNewUserId').value.trim();
+    const pw = document.getElementById('adminNewUserPw').value;
+    try {
+      const res = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, pw })
+      });
+      if (!res.ok) throw new Error((await res.json()).error || '생성 실패');
+      adminUserFormSuccess.innerText = '사용자 생성 성공!';
+      adminUserFormSuccess.style.display = 'block';
+      adminUserForm.reset();
+      renderUserTable();
+    } catch (err) {
+      adminUserFormError.innerText = err.message;
+      adminUserFormError.style.display = 'block';
+    }
+  };
+  // 로그아웃
+  document.getElementById('adminLogoutBtn').onclick = logout;
 } 

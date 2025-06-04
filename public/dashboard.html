@@ -105,22 +105,40 @@
       text-decoration: underline;
       word-break: break-all;
     }
+    .admin-badge {
+      display: inline-block;
+      background: #1877f2;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      border-radius: 6px;
+      padding: 3px 12px 3px 12px;
+      margin-right: 7px;
+      vertical-align: middle;
+      letter-spacing: -0.5px;
+    }
   </style>
 </head>
 <body style="background:#f4f6fa;">
-  <div class="dashboard-container" style="max-width:1400px;margin:40px auto 0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,0.08);padding:0;">
-    <div class="dashboard-header">
-      <div class="dashboard-title"><span style="font-size:1.7rem;">⚡</span>대시보드</div>
-      <div><button onclick="location.href='index.html'" class="dashboard-btn-blue">홈으로</button></div>
+  <div class="dashboard-container" style="max-width:1800px;margin:40px auto 0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,0.08);padding:0;">
+    <div class="dashboard-header" style="padding:36px 48px 0 48px;display:flex;align-items:center;justify-content:space-between;">
+      <span class="dashboard-title" style="font-size:2.5rem;">⚡ 대시보드</span>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;min-width:0;">
+        <span id="userInfo" style="color:#19c37d;font-weight:700;font-size:1.18rem;min-width:90px;text-align:right;">&nbsp;</span>
+        <button onclick="location.href='index.html'" class="dashboard-btn-blue" style="font-size:1.05rem;padding:10px 20px;min-width:90px;">홈으로</button>
+        <button id="registerUserBtn" class="dashboard-btn-blue" style="background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;">사용자 등록</button>
+        <button id="logoutBtn" class="dashboard-btn-blue" style="background:#888;font-size:1.05rem;padding:10px 20px;min-width:90px;white-space:nowrap;">로그아웃</button>
+      </div>
     </div>
-    <div class="dashboard-table-wrap">
-      <table class="dashboard-table">
+    <div class="dashboard-table-wrap" style="padding:0 48px 48px 48px;">
+      <table class="dashboard-table" style="font-size:1.18rem;">
         <thead>
           <tr>
             <th>이미지</th>
             <th>이미지 URL</th>
             <th>블로그 URL</th>
             <th>메모</th>
+            <th>소유자(ID)</th>
             <th>상세보기</th>
             <th>삭제</th>
           </tr>
