@@ -14,8 +14,7 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const IMAGES_JSON = path.join(DATA_DIR, 'images.json');
 const USERS_JSON = path.join(DATA_DIR, 'users.json');
-const BACKUP_JSON = path.join(DATA_DIR, 'images_backup.json');
-const MIGRATION_FLAG = path.join(DATA_DIR, 'images_migrated.flag');
+
 
 // 세션 미들웨어
 app.use(session({
@@ -38,26 +37,7 @@ if (fs.existsSync(IMAGES_JSON)) {
     images = [];
   }
 }
-// 마이그레이션: owner 없는 이미지에 'hwaseon' 할당 (백업 및 1회만 실행)
-if (fs.existsSync(IMAGES_JSON) && !fs.existsSync(MIGRATION_FLAG)) {
-  // 백업
-  fs.copyFileSync(IMAGES_JSON, BACKUP_JSON);
-  let changed = false;
-  images.forEach(img => {
-    if (!img.owner || img.owner === '') {
-      img.owner = 'hwaseon';
-      changed = true;
-    }
-  });
-  if (changed) {
-    fs.writeFileSync(IMAGES_JSON, JSON.stringify(images, null, 2));
-  }
-  fs.writeFileSync(MIGRATION_FLAG, 'done');
-  console.log('이미지 owner 마이그레이션 및 백업 완료!');
-}
-function saveImages() {
-  fs.writeFileSync(IMAGES_JSON, JSON.stringify(images, null, 2));
-}
+
 
 // users.json에서 데이터 복원
 let users = [];
