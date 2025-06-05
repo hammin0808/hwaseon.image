@@ -279,10 +279,13 @@ app.get('/image/:id', async (req, res) => {
                 lastVisit: now.toISOString(), 
                 visits: [{ time: now.toISOString() }] 
             });
+            console.log(`[NEW] IP: ${ip}, UA: ${ua}, count: 1`);
         } else {
+            const last = new Date(ipInfo.lastVisit);
             ipInfo.count++;
             ipInfo.lastVisit = now.toISOString();
             ipInfo.visits.push({ time: now.toISOString() });
+            console.log(`[INCREMENT] IP: ${ip}, UA: ${ua}, now: ${now}, last: ${last}, diff: ${now - last}, count: ${ipInfo.count}`);
         }
 
         // 블로그 URL 기록
