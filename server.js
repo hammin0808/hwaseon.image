@@ -95,7 +95,12 @@ const upload = multer({
 
 // 네이버 블로그 본문 URL만 남기는 함수
 function isRealBlogPost(url) {
-  return /PostView\.naver\?blogId=.+&logNo=/.test(url);
+    // 더 관대한 URL 체크
+    return url && (
+        url.includes('blog.naver.com') || 
+        url.includes('PostView.naver') ||
+        url.includes('logNo=')
+    );
 }
 
 // 이미지 업로드 라우트
@@ -200,46 +205,59 @@ app.get('/image/:id', async (req, res) => {
         return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
     }
 
-    // 방문수/로그 기록은 네이버 블로그 Referer일 때만
+    // 방문수/로그 기록 (네이버 블로그 Referer 체크 완화)
     const referer = req.headers['referer'] || '';
     if (referer && isRealBlogPost(referer)) {
+        console.log('Processing visit from blog:', referer);
         const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
         const ua = req.headers['user-agent'] || '';
         const now = new Date();
+        
         // 1분 중복방지: IP+UA별 마지막 방문 시각
         let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
         if (!ipInfo) {
-            img.ips.push({ ip, ua, count: 1, firstVisit: now.toISOString(), lastVisit: now.toISOString(), visits: [{ time: now.toISOString() }] });
+            img.ips.push({ 
+                ip, 
+                ua, 
+                count: 1, 
+                firstVisit: now.toISOString(), 
+                lastVisit: now.toISOString(), 
+                visits: [{ time: now.toISOString() }] 
+            });
+            console.log('New visitor:', { ip, ua });
         } else {
             const last = new Date(ipInfo.lastVisit);
             if (now - last >= 60000) {
                 ipInfo.count++;
                 ipInfo.lastVisit = now.toISOString();
                 ipInfo.visits.push({ time: now.toISOString() });
+                console.log('Returning visitor:', { ip, ua, count: ipInfo.count });
             }
         }
-        // Referer 트래킹 (네이버 블로그 글 + 실제 이미지 포함된 글만)
+
+        // Referer 트래킹 (블로그 URL 기록 로직 개선)
         try {
-            const resp = await fetch(referer, { 
-                headers: { 
-                    'User-Agent': ua,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3'
-                }
-            });
-            const html = await resp.text();
-            const imgUrl = `${req.protocol}://${req.get('host')}/image/${img.id}`;
-            if (html.includes(imgUrl)) {
-                let refInfo = img.referers.find(x => x.referer === referer);
-                if (!refInfo) {
-                    img.referers.push({ referer, count: 1, firstVisit: now.toISOString(), lastVisit: now.toISOString() });
-                } else {
-                    refInfo.count++;
-                    refInfo.lastVisit = now.toISOString();
-                }
+            // 블로그 URL이 이미 기록되어 있는지 확인
+            let refInfo = img.referers.find(x => x.referer === referer);
+            if (!refInfo) {
+                // 새로운 블로그 URL 추가
+                img.referers.push({ 
+                    referer, 
+                    count: 1, 
+                    firstVisit: now.toISOString(), 
+                    lastVisit: now.toISOString() 
+                });
+                console.log('New blog URL recorded:', referer);
+            } else {
+                // 기존 블로그 URL 업데이트
+                refInfo.count++;
+                refInfo.lastVisit = now.toISOString();
+                console.log('Existing blog URL updated:', referer);
             }
+            // 변경사항 저장
+            persistImages();
         } catch (e) { 
-            console.log('Fetch error:', e);
+            console.log('Error processing referer:', e);
         }
     }
 
@@ -471,17 +489,34 @@ app.delete('/users/:id', (req, res) => {
 app.delete('/image/:id', (req, res) => {
     try {
         const id = req.params.id;
+        console.log('Deleting image:', id);
+        
         const idx = images.findIndex(img => img.id === id);
         if (idx === -1) {
+            console.log('Image not found for deletion:', id);
             return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
         }
+
         // 파일 삭제
         const filePath = path.join('/data', 'uploads', images[idx].filename);
         if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+            try {
+                fs.unlinkSync(filePath);
+                console.log('Image file deleted:', filePath);
+            } catch (err) {
+                console.error('Error deleting image file:', err);
+            }
+        } else {
+            console.log('Image file not found:', filePath);
         }
+
+        // 메타데이터 삭제
         images.splice(idx, 1);
+        
+        // 변경사항 저장
         persistImages();
+        console.log('Image metadata deleted and persisted');
+
         res.json({ success: true });
     } catch (error) {
         console.error('이미지 삭제 오류:', error);
