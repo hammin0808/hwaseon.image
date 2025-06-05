@@ -173,39 +173,40 @@ app.get('/image/:id', async (req, res) => {
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
     }
-    const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
-    const ua = req.headers['user-agent'] || '';
-    const now = new Date();
+
+    // 방문수/로그 기록은 네이버 블로그 Referer일 때만
     const referer = req.headers['referer'] || '';
-    // 방문수/로그 카운트: 네이버 블로그 referer일 때만
     if (referer && isRealBlogPost(referer)) {
-      // 1분 중복방지: IP+UA별 마지막 방문 시각
-      let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-      if (!ipInfo) {
-          img.ips.push({ ip, ua, count: 1, firstVisit: now.toISOString(), lastVisit: now.toISOString(), visits: [{ time: now.toISOString() }] });
-      } else {
-          const last = new Date(ipInfo.lastVisit);
-          if (now - last >= 60000) {
-              ipInfo.count++;
-              ipInfo.lastVisit = now.toISOString();
-              ipInfo.visits.push({ time: now.toISOString() });
-          }
-      }
-      // Referer 트래킹 (네이버 블로그 글 + 실제 이미지 포함된 글만)
-      try {
-          const resp = await fetch(referer, { headers: { 'User-Agent': ua } });
-          const html = await resp.text();
-          const imgUrl = `${req.protocol}://${req.get('host')}/image/${img.id}`;
-          if (html.includes(imgUrl)) {
-              let refInfo = img.referers.find(x => x.referer === referer);
-              if (!refInfo) {
-                  img.referers.push({ referer, count: 1, firstVisit: now.toISOString(), lastVisit: now.toISOString() });
-              } else {
-                  refInfo.count++;
-                  refInfo.lastVisit = now.toISOString();
-              }
-          }
-      } catch (e) { /* ignore fetch error */ }
+        const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
+        const ua = req.headers['user-agent'] || '';
+        const now = new Date();
+        // 1분 중복방지: IP+UA별 마지막 방문 시각
+        let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
+        if (!ipInfo) {
+            img.ips.push({ ip, ua, count: 1, firstVisit: now.toISOString(), lastVisit: now.toISOString(), visits: [{ time: now.toISOString() }] });
+        } else {
+            const last = new Date(ipInfo.lastVisit);
+            if (now - last >= 60000) {
+                ipInfo.count++;
+                ipInfo.lastVisit = now.toISOString();
+                ipInfo.visits.push({ time: now.toISOString() });
+            }
+        }
+        // Referer 트래킹 (네이버 블로그 글 + 실제 이미지 포함된 글만)
+        try {
+            const resp = await fetch(referer, { headers: { 'User-Agent': ua } });
+            const html = await resp.text();
+            const imgUrl = `${req.protocol}://${req.get('host')}/image/${img.id}`;
+            if (html.includes(imgUrl)) {
+                let refInfo = img.referers.find(x => x.referer === referer);
+                if (!refInfo) {
+                    img.referers.push({ referer, count: 1, firstVisit: now.toISOString(), lastVisit: now.toISOString() });
+                } else {
+                    refInfo.count++;
+                    refInfo.lastVisit = now.toISOString();
+                }
+            }
+        } catch (e) { /* ignore fetch error */ }
     }
     // Content-Type 설정
     const ext = path.extname(img.filename).toLowerCase();
@@ -215,6 +216,8 @@ app.get('/image/:id', async (req, res) => {
     else if (ext === '.gif') contentType = 'image/gif';
     else if (ext === '.webp') contentType = 'image/webp';
     res.set('Content-Type', contentType);
+
+    // 반드시 이미지 파일을 전송!
     res.sendFile(filePath);
 });
 
