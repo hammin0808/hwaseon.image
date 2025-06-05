@@ -105,10 +105,8 @@ const upload = multer({
 // 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
 function isRealBlogPost(url) {
     if (!url) return false;
-    const isPostView = /PostView\.naver\?blogId=.+&logNo=/.test(url);
-    const isWriteForm = /PostWriteForm\.naver/.test(url);
-    const isBlogHome = /blog\.naver\.com(\/|$)(?!.*logNo=)/.test(url) && !isPostView;
-    return isPostView && !isWriteForm && !isBlogHome;
+    // logNo=가 반드시 포함되어 있으면 본문으로 인정
+    return /PostView\.naver.*logNo=/.test(url) && !/PostWriteForm\.naver/.test(url);
 }
 
 // 봇/크롤러 체크 함수
