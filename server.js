@@ -165,7 +165,7 @@ app.get('/image/:id', async (req, res) => {
     if (!img) {
         return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
     }
-    const filePath = path.join(__dirname, 'uploads', img.filename);
+    const filePath = path.join('/data', 'uploads', img.filename);
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
     }
