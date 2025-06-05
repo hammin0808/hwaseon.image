@@ -17,7 +17,7 @@ app.use(express.json());
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     next();
-  });
+});
 
 // 세션 설정
 app.use(session({
@@ -176,17 +176,21 @@ app.options('/image/:id', (req, res) => {
 
 // 이미지 제공 라우트
 app.get('/image/:id', async (req, res) => {
+    // ID에서 확장자 제거
+    const id = req.params.id.replace(/\.[^/.]+$/, '');
+    
     console.log('Image request:', {
-        id: req.params.id,
+        originalId: req.params.id,
+        cleanedId: id,
         referer: req.headers['referer'],
         userAgent: req.headers['user-agent'],
         origin: req.headers['origin'],
         host: req.headers['host']
     });
 
-    const img = images.find(i => i.id === req.params.id);
+    const img = images.find(i => i.id === id);
     if (!img) {
-        console.log('Image not found:', req.params.id);
+        console.log('Image not found:', id);
         return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
     }
 
