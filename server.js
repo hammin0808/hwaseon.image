@@ -163,12 +163,25 @@ app.post('/upload', upload.single('image'), (req, res) => {
     }
 });
 
+// OPTIONS 요청 처리
+app.options('/image/:id', (req, res) => {
+    res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent',
+        'Access-Control-Max-Age': '86400'
+    });
+    res.status(204).end();
+});
+
 // 이미지 제공 라우트
 app.get('/image/:id', async (req, res) => {
     console.log('Image request:', {
         id: req.params.id,
         referer: req.headers['referer'],
-        userAgent: req.headers['user-agent']
+        userAgent: req.headers['user-agent'],
+        origin: req.headers['origin'],
+        host: req.headers['host']
     });
 
     const img = images.find(i => i.id === req.params.id);
@@ -203,7 +216,13 @@ app.get('/image/:id', async (req, res) => {
         }
         // Referer 트래킹 (네이버 블로그 글 + 실제 이미지 포함된 글만)
         try {
-            const resp = await fetch(referer, { headers: { 'User-Agent': ua } });
+            const resp = await fetch(referer, { 
+                headers: { 
+                    'User-Agent': ua,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3'
+                }
+            });
             const html = await resp.text();
             const imgUrl = `${req.protocol}://${req.get('host')}/image/${img.id}`;
             if (html.includes(imgUrl)) {
@@ -234,7 +253,10 @@ app.get('/image/:id', async (req, res) => {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent',
-        'Cache-Control': 'public, max-age=31536000'
+        'Access-Control-Expose-Headers': 'Content-Type',
+        'Cache-Control': 'public, max-age=31536000',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp'
     });
 
     // 반드시 이미지 파일을 전송!
