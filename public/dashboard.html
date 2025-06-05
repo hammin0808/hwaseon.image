@@ -48,7 +48,7 @@
       font-size: 1.08rem;
     }
     .dashboard-table td {
-      padding: 14px 8px;
+      padding: 14px 4px;
       text-align: center;
       vertical-align: middle;
       font-size: 1rem;
@@ -65,18 +65,20 @@
       cursor: pointer;
       transition: box-shadow 0.2s, transform 0.2s;
     }
-    .dashboard-btn-blue {
-      background: #1877f2;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
+    .dashboard-btn-blue, .dashboard-btn-red {
+      min-width: 20px;
       padding: 7px 18px;
       font-size: 1rem;
       font-weight: 500;
-      text-align: left;
+      border-radius: 6px;
+      border: none;
       cursor: pointer;
-      margin-right: 6px;
       transition: background 0.2s;
+    }
+    .dashboard-btn-blue {
+      background: #1877f2;
+      color: #fff;
+      margin-right: 6px;
     }
     .dashboard-btn-blue:hover {
       background: #1456b8;
@@ -84,16 +86,24 @@
     .dashboard-btn-red {
       background: #dc3545;
       color: #fff;
+    }
+    .dashboard-btn-red:hover {
+      background: #b52a37;
+    }
+    .dashboard-copy-btn {
+      background: #1877f2;
+      color: #fff;
       border: none;
       border-radius: 6px;
       padding: 7px 18px;
       font-size: 1rem;
       font-weight: 500;
+      margin-right: 8px;
       cursor: pointer;
       transition: background 0.2s;
     }
-    .dashboard-btn-red:hover {
-      background: #b52a37;
+    .dashboard-copy-btn:hover {
+      background: #1456b8;
     }
     .dashboard-url-link {
       color: #1877f2;
@@ -109,19 +119,19 @@
       display: inline-block;
       background: #1877f2;
       color: #fff;
-      font-size: 1rem;
+      font-size: 1rem;  
       font-weight: 700;
       border-radius: 6px;
       padding: 3px 12px 3px 12px;
-      margin-right: 7px;
+      margin-right: 6px;
       vertical-align: middle;
       letter-spacing: -0.5px;
     }
   </style>
 </head>
 <body style="display:none;">
-  <div class="dashboard-container" style="max-width:1800px;margin:40px auto 0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,0.08);padding:0;">
-    <div class="dashboard-header" style="padding:36px 48px 0 48px;display:flex;align-items:center;justify-content:space-between;">
+  <div class="dashboard-container" style="max-width:100%;min-width:1200px;margin:40px auto 0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,0.08);padding:0;">
+    <div class="dashboard-header" style="padding:36px 64px 0 64px;display:flex;align-items:center;justify-content:space-between;">
       <span class="dashboard-title" style="font-size:2.5rem;">⚡ 대시보드</span>
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;min-width:0;">
         <span id="userInfo" style="color:#19c37d;font-weight:700;font-size:1.18rem;min-width:90px;text-align:right;">&nbsp;</span>
@@ -130,8 +140,8 @@
         <button id="logoutBtn" class="dashboard-btn-blue" style="background:#888;font-size:1.05rem;padding:10px 20px;min-width:90px;white-space:nowrap;">로그아웃</button>
       </div>
     </div>
-    <div class="dashboard-table-wrap" style="padding:0 48px 48px 48px;">
-      <table class="dashboard-table" style="font-size:1.18rem;">
+    <div class="dashboard-table-wrap" style="padding:0 64px 64px 64px;">
+      <table class="dashboard-table" style="font-size:1.18rem;width:100%;min-width:1100px;">
         <thead>
           <tr>
             <th>이미지</th>

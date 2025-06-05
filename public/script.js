@@ -31,56 +31,87 @@ if (document.getElementById('uploadForm')) {
     if (memoInput) {
       formData.set('memo', memoInput.value);
     }
-    const res = await fetch('/upload', { 
-      method: 'POST', 
-      body: formData,
-      credentials: 'include'
-    });
-    const data = await res.json();
-    let imgTag = '';
-    if (file) {
-      imgTag = `<div style='width:100%;text-align:center;'><img src="${previewUrl}" class="result-img" alt="업로드 이미지" id="result-img-thumb"></div>`;
-    }
-    // 서버가 urls, memos 배열로 응답하면 첫 번째 값 사용
-    const url = data.url || (data.urls && data.urls[0]);
-    const memo = data.memo || (data.memos && data.memos[0]);
-    const urlText = url ? `${location.origin}${url}` : '';
-    resultDiv.innerHTML =
-      `<div class="result-box" style="display:flex;flex-direction:column;align-items:center;gap:10px;">
-        ${imgTag}
-        <div class="result-info" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;">
-          <div class='result-url-row' style="margin-bottom:4px;display:flex;align-items:center;gap:8px;">
-            <span class='result-url'><span style="color:#1877f2;font-weight:bold;">URL  </span> <a href="${url}" target="_blank">${urlText}</a></span>
-            <button class='copy-btn' id='copy-url-btn' type='button'>복사</button>
-          </div>
-          <div class='result-memo' style="margin-top:4px;"><span style="color:#1877f2;font-weight:bold;">메모:</span> ${memo || ''}</div>
-        </div>
-      </div>`;
-    resultDiv.style.display = '';
-    // 복사 버튼 이벤트
-    document.getElementById('copy-url-btn').onclick = function() {
-      const url = this.parentNode.querySelector('a').href;
-      navigator.clipboard.writeText(url).then(() => {
-        this.innerHTML = '✅';
-        setTimeout(() => { this.innerHTML = '복사'; }, 1200);
+    try {
+      const res = await fetch('/upload', { 
+        method: 'POST', 
+        body: formData,
+        credentials: 'include'
       });
-    };
-    // 이미지 썸네일 클릭시 미리보기
-    if (file) {
-      const thumb = document.getElementById('result-img-thumb');
-      thumb.onclick = function() {
-        const modal = document.getElementById('img-modal');
-        const modalImg = document.getElementById('img-modal-img');
-        modalImg.src = previewUrl;
-        modal.style.display = 'flex';
+      const data = await res.json();
+      let imgTag = '';
+      if (file) {
+        imgTag = `<div style='width:100%;text-align:center;'><img src="${previewUrl}" class="result-img" alt="업로드 이미지" id="result-img-thumb"></div>`;
+      }
+      // 서버가 urls, memos 배열로 응답하면 첫 번째 값 사용
+      const url = data.url || (data.urls && data.urls[0]);
+      const memo = data.memo || (data.memos && data.memos[0]);
+      const urlText = url ? `${location.origin}${url}` : '';
+      resultDiv.innerHTML =
+        `<div class="result-box" style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+          ${imgTag}
+          <div class="result-info" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div class='result-url-row' style="margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+              <span class='result-url'><span style="color:#1877f2;font-weight:bold;">URL  </span> <a href="${url}" target="_blank">${urlText}</a></span>
+              <button class='copy-btn' id='copy-url-btn' type='button'>복사</button>
+            </div>
+            <div class='result-memo' style="margin-top:4px;"><span style="color:#1877f2;font-weight:bold;">메모:</span> ${memo || ''}</div>
+          </div>
+        </div>`;
+      resultDiv.style.display = '';
+      // 복사 버튼 이벤트
+      document.getElementById('copy-url-btn').onclick = function() {
+        const url = this.parentNode.querySelector('a').href;
+        navigator.clipboard.writeText(url).then(() => {
+          this.innerHTML = '✅';
+          setTimeout(() => { this.innerHTML = '복사'; }, 1200);
+        });
       };
+      // 이미지 썸네일 클릭시 미리보기
+      if (file) {
+        const thumb = document.getElementById('result-img-thumb');
+        thumb.onclick = function() {
+          const modal = document.getElementById('img-modal');
+          const modalImg = document.getElementById('img-modal-img');
+          modalImg.src = previewUrl;
+          modal.style.display = 'flex';
+        };
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('이미지 업로드 중 오류가 발생했습니다.');
     }
   };
 }
-if (document.getElementById('dashboardBtn') && !document.getElementById('dashboard')) {
-  document.getElementById('dashboardBtn').onclick = () => {
-    location.href = 'dashboard.html';
-  };
+if (document.getElementById('dashboardBtn')) {
+  document.getElementById('dashboardBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    console.log('Dashboard button clicked'); // 디버깅용 로그
+    
+    // 로그인 상태 확인
+    fetch('/me', {
+      credentials: 'include'
+    })
+    .then(response => {
+      console.log('Me response:', response.status); // 디버깅용 로그
+      if (!response.ok) {
+        window.location.href = 'login.html';
+        return;
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Me data:', data); // 디버깅용 로그
+      if (!data || !data.id) {
+        window.location.href = 'login.html';
+        return;
+      }
+      window.location.href = 'dashboard.html';
+    })
+    .catch(error => {
+      console.error('Dashboard button error:', error); // 디버깅용 로그
+      window.location.href = 'login.html';
+    });
+  });
 }
 if (document.getElementById('multiMemoBtn')) {
   document.getElementById('multiMemoBtn').onclick = () => {
@@ -90,11 +121,53 @@ if (document.getElementById('multiMemoBtn')) {
 // dashboard.html
 if (document.getElementById('dashboard-tbody')) {
   document.body.style.display = 'none';
-  checkSession().then(isLoggedIn => {
-    if (!isLoggedIn) return;
-    // 로그인 상태면 대시보드 렌더링 코드 실행
+  
+  // 페이지 로드 시 즉시 로그인 체크
+  fetch('/me', {
+    credentials: 'include'
+  })
+  .then(response => {
+    if (!response.ok) {
+      window.location.href = 'login.html';
+      return;
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (!data || !data.id) {
+      window.location.href = 'login.html';
+      return;
+    }
+    
+    // 로그인된 경우에만 나머지 코드 실행
     document.body.style.display = '';
-    // 대시보드 데이터 로드 및 이벤트 바인딩 코드 시작
+    const userNameElement = document.getElementById('userInfo');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    if (data.role === 'admin') {
+      userNameElement.innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700; margin-right:10px;">' + data.id + '</span>';
+    } else {
+      userNameElement.innerText = data.id;
+    }
+
+    // 로그아웃 기능
+    logoutBtn.addEventListener('click', function() {
+      fetch('/logout', {
+        method: 'POST',
+        credentials: 'include'
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = 'login.html';
+        }
+      })
+      .catch(error => {
+        window.location.href = 'login.html';
+      });
+    });
+
+    // 대시보드 데이터 로드
     fetch('/dashboard-data', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
@@ -104,10 +177,14 @@ if (document.getElementById('dashboard-tbody')) {
           const bid = Number(b.id || b.filename?.replace(/\D/g, ''));
           return bid - aid;
         });
+
         const tbody = document.getElementById('dashboard-tbody');
         tbody.innerHTML = data.map((img, idx) => {
-          const fullUrl = `${location.origin}${img.url}`;
-          const thumbUrl = `/image/${img.url.split('/').pop()}?dashboard=1`;
+          // url이 없으면 id로 대체
+          const imgUrl = img.url || `/image/${img.id}`;
+          const imgId = (img.url ? img.url.split('/').pop() : img.id);
+          const fullUrl = `${location.origin}${imgUrl}`;
+          const thumbUrl = `/image/${imgId}?dashboard=1`;
           let mainReferer = '-';
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
@@ -115,18 +192,42 @@ if (document.getElementById('dashboard-tbody')) {
               mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link'>${realReferers[0].referer}</a>`;
             }
           }
+          // 소유자 표시: admin만 초록색, 나머지는 기본
+          let ownerCell = '-';
+          if (img.owner) {
+            if (img.owner === 'admin') {
+              ownerCell = `<span style="color:#19c37d;font-weight:700;letter-spacing:0.5px;">${img.owner}</span>`;
+            } else {
+              ownerCell = `<span style="color:#222;font-weight:500;letter-spacing:0.5px;">${img.owner}</span>`;
+            }
+          }
           return `
-            <tr data-id="${img.url.split('/').pop()}">
-              <td><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}"></td>
-              <td><a href="${fullUrl}" target="_blank" class="dashboard-url-link">${fullUrl}</a></td>
-              <td>${mainReferer}</td>
-              <td style="word-break:break-all;">${img.memo || '-'}</td>
-              <td style="color:#19c37d;font-weight:700;">${img.owner || '-'}</td>
-              <td><button class="dashboard-btn-blue dashboard-detail-btn dashboard-btn-wide" data-idx="${idx}">보기</button></td>
-              <td><button class="dashboard-btn-red dashboard-btn-wide dashboard-delete-btn">삭제</button></td>
+            <tr data-id="${imgId}" style="vertical-align:middle;">
+              <td style="padding:10px 8px;"><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"></td>
+              <td style="padding:10px 8px;">
+                <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
+                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" style="display:inline-block;max-width:220px;overflow-x:auto;vertical-align:middle;">${fullUrl}</a>
+              </td>
+              <td style="padding:10px 8px;">${mainReferer}</td>
+              <td style="word-break:break-all;padding:10px 8px;">${img.memo || '-'}</td>
+              <td style="padding:10px 8px;text-align:center;">${ownerCell}</td>
+              <td style="padding:10px 8px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
+              <td style="padding:10px 8px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
             </tr>
           `;
         }).join('');
+
+        // 복사 버튼 이벤트
+        document.querySelectorAll('.dashboard-copy-btn').forEach(btn => {
+          btn.onclick = function(e) {
+            const url = this.getAttribute('data-url');
+            navigator.clipboard.writeText(url).then(() => {
+              this.innerHTML = '✅';
+              setTimeout(() => { this.innerHTML = '복사'; }, 1200);
+            });
+          };
+        });
+
         // 삭제 버튼 이벤트
         document.querySelectorAll('.dashboard-delete-btn').forEach(btn => {
           btn.onclick = function(e) {
@@ -140,157 +241,8 @@ if (document.getElementById('dashboard-tbody')) {
             }
           };
         });
-        // 상세보기 버튼 이벤트
-        document.querySelectorAll('.dashboard-detail-btn').forEach(btn => {
-          btn.onclick = function(e) {
-            e.stopPropagation();
-            const idx = this.getAttribute('data-idx');
-            const img = data[idx];
-            function formatDate(dateStr) {
-              // 오전/오후가 포함된 문자열이면 24시간제로 변환
-              if (/오전|오후/.test(dateStr)) {
-                let [date, time] = dateStr.split(' ');
-                let [hh, mm, ss] = time.split(':');
-                let hour = parseInt(hh, 10);
-                if (dateStr.includes('오후') && hour < 12) hour += 12;
-                if (dateStr.includes('오전') && hour === 12) hour = 0;
-                return `${date} ${String(hour).padStart(2, '0')}:${mm}:${ss}`;
-              }
-              const d = new Date(dateStr);
-              if (isNaN(d.getTime())) return '-';
-              const yyyy = d.getFullYear();
-              const mm = String(d.getMonth()+1).padStart(2, '0');
-              const dd = String(d.getDate()).padStart(2, '0');
-              const hh = String(d.getHours()).padStart(2, '0'); // 24시간제
-              const min = String(d.getMinutes()).padStart(2, '0');
-              const ss = String(d.getSeconds()).padStart(2, '0');
-              return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-            }
-            // 블로그 referer 표
-            let refTable = '';
-            if (img.referers && img.referers.length > 0) {
-              const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
-              if (realReferers.length > 0) {
-                const ref = realReferers[0];
-                refTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th>블로그 주소</th><th>최초</th></tr>` +
-                  `<tr><td style='word-break:break-all;'><a href='${ref.referer}' target='_blank' class='dashboard-blog-link'>${ref.referer}</a></td><td>${formatDate(ref.firstVisit)}</td></tr>` +
-                  '</table></div>';
-              } else {
-                refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
-              }
-            } else {
-              refTable = `<div class='modal-table-wrap'><div style=\"color:#888;padding:18px 0;text-align:center;\">블로그 기록 없음</div></div>`;
-            }
-            let ipTable = '';
-            if (img.ips && img.ips.length > 0) {
-              ipTable = `<div class='modal-table-wrap'><table class='modal-table' style='min-width:340px;width:100%;'><tr><th style="white-space:nowrap;">IP</th><th style="white-space:nowrap;">User-Agent</th><th style="white-space:nowrap;">방문수</th></tr>` +
-                img.ips.map(ipinfo => `<tr><td style="white-space:normal;word-break:break-all;">${ipinfo.ip}</td><td style='font-size:0.93em;word-break:break-all;color:#888;white-space:normal;'>${ipinfo.ua || '-'}</td><td style="white-space:normal;">${ipinfo.count}</td></tr>`).join('') + '</table></div>';
-            } else {
-              ipTable = `<div class='modal-table-wrap'><div style="color:#888;padding:18px 0;text-align:center;">방문 기록 없음</div></div>`;
-            }
-            document.getElementById('modal-body').innerHTML =
-              `<div class='modal-title-row modal-title-row-main' style='flex-direction:column;align-items:flex-start;gap:0;'>
-                <span class='modal-title-filename' style='font-size:1.13rem;font-weight:bold;color:#1877f2;'>${img.filename || ''}
-                <button id='excel-download-btn' class='dashboard-btn-blue' style='font-size:0.97rem;margin-top:20px; margin-bottom:15px; padding:6px 18px;'>엑셀 다운로드</button></span>
-                
-              </div>
-              <div class='modal-section modal-section-main'>
-                <div class='modal-row'><span class='modal-label'>전체 조회수</span><span class='modal-value'>${img.views}</span></div>
-                <div class='modal-row'><span class='modal-label'>고유 방문자</span><span class='modal-value'>${img.unique}</span></div>
-              </div>
-              <div class='modal-section'>
-                <div class='modal-section-title'>블로그 유입 기록</div>
-                ${refTable}
-              </div>
-              <div class='modal-section'>
-                <div class='modal-section-title'>IP/UA 방문 기록</div>
-                ${ipTable}
-              </div>`;
-            // 모달 가로 넓게, 스크롤 적용
-            const modalBody = document.getElementById('modal-body');
-            if (modalBody) {
-              modalBody.style.maxHeight = '60vh';
-              modalBody.style.overflowY = 'auto';
-              modalBody.parentElement.style.width = '720px';
-              modalBody.parentElement.style.minWidth = '700px';
-            }
-            document.getElementById('modal').style.display = 'flex';
-            // 엑셀 다운로드 기능
-            document.getElementById('excel-download-btn').onclick = function() {
-              // xlsx 라이브러리 로드
-              if (!window.XLSX) {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-                script.onload = () => downloadExcel();
-                document.body.appendChild(script);
-              } else {
-                downloadExcel();
-              }
-              function downloadExcel() {
-                // 블로그 표 데이터 (블로그 주소 / 전체 방문 수 / 고유 방문자 수 / 블로그 작성일)
-                const blogRows = [];
-                if (img.referers && img.referers.length > 0) {
-                  // 전체 방문수, 고유 방문자수, 작성일(최초 방문일)
-                  const totalVisit = img.referers.reduce((sum, ref) => sum + (ref.count || 0), 0);
-                  const uniqueVisit = img.ips ? img.ips.length : 0;
-                  const firstVisit = img.referers.reduce((min, ref) => {
-                    if (!min) return ref.firstVisit;
-                    return new Date(ref.firstVisit) < new Date(min) ? ref.firstVisit : min;
-                  }, null);
-                  blogRows.push({
-                    '블로그 주소': img.referers[0].referer,
-                    '전체 방문 수': totalVisit,
-                    '고유 방문자 수': uniqueVisit,
-                    '블로그 작성일': formatDate(firstVisit)
-                  });
-                }
-                // User IP 표 데이터 (IP / User-Agent / 방문 수 / 최초 방문일자)
-                const ipRows = [];
-                if (img.ips && img.ips.length > 0) {
-                  img.ips.forEach(ipinfo => {
-                    ipRows.push({
-                      'IP': ipinfo.ip,
-                      'User-Agent': ipinfo.ua || '-',
-                      '방문 수': ipinfo.count,
-                      '최초 방문일자': formatDate(ipinfo.firstVisit)
-                    });
-                  });
-                }
-                // 워크북 생성
-                const wb = XLSX.utils.book_new();
-                // 스타일 함수: 헤더에 연보라색, bold, 가운데 정렬
-                function styleHeader(ws, ncols) {
-                  for (let c = 0; c < ncols; c++) {
-                    const cell = ws[XLSX.utils.encode_cell({r:0, c})];
-                    if (cell) {
-                      cell.s = {
-                        fill: { fgColor: { rgb: 'D1C4E9' } },
-                        font: { bold: true },
-                        alignment: { horizontal: 'center', vertical: 'center' }
-                      };
-                    }
-                  }
-                }
-                // 블로그 시트
-                if (blogRows.length > 0) {
-                  const ws1 = XLSX.utils.json_to_sheet(blogRows, {cellStyles:true});
-                  ws1['!cols'] = [ { wch: 40 }, { wch: 16 }, { wch: 16 }, { wch: 22 } ];
-                  styleHeader(ws1, 4);
-                  XLSX.utils.book_append_sheet(wb, ws1, '블로그');
-                }
-                // User IP 시트
-                if (ipRows.length > 0) {
-                  const ws2 = XLSX.utils.json_to_sheet(ipRows, {cellStyles:true});
-                  ws2['!cols'] = [ { wch: 18 }, { wch: 36 }, { wch: 12 }, { wch: 22 } ];
-                  styleHeader(ws2, 4);
-                  XLSX.utils.book_append_sheet(wb, ws2, 'User IP');
-                }
-                XLSX.writeFile(wb, `상세정보_${img.filename || ''}.xlsx`);
-              }
-            };
-          };
-        });
-        // 이미지 미리보기 모달 이벤트
+
+        // 이미지 미리보기 이벤트
         document.querySelectorAll('.dashboard-img-thumb').forEach(imgEl => {
           imgEl.onclick = function(e) {
             e.stopPropagation();
@@ -301,73 +253,155 @@ if (document.getElementById('dashboard-tbody')) {
             modal.style.display = 'flex';
           };
         });
-        // 대시보드 사용자명 표시 등 기타 코드도 이 블록 안에 위치
-        fetch('/me', { credentials: 'include' })
-          .then(res => res.json())
-          .then(data => {
-            if (data.id && document.getElementById('userInfo')) {
-              if (data.role === 'admin') {
-                document.getElementById('userInfo').innerHTML = '<span class="admin-badge">관리자</span> <span style="color:#1877f2;font-weight:700;">' + data.id + '</span>';
-                const oldBtn = document.getElementById('registerUserBtn');
-                if (oldBtn) oldBtn.remove();
-                const headerBtns = document.querySelector('.dashboard-header > div:last-child');
-                const logoutBtn = document.getElementById('logoutBtn');
-                const btn = document.createElement('button');
-                btn.id = 'registerUserBtn';
-                btn.className = 'dashboard-btn-blue';
-                btn.style = 'background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;';
-                btn.innerText = '사용자 등록';
-                btn.onclick = () => location.href = 'register.html';
-                headerBtns.insertBefore(btn, logoutBtn);
-              } else {
-                document.getElementById('userInfo').innerText = data.id;
-              }
-            }
-          })
-          .catch(err => {
-            console.error('Error fetching user info:', err);
-            location.href = 'login.html';
-          });
+
+        document.querySelectorAll('.dashboard-detail-btn').forEach(btn => {
+          btn.onclick = function(e) {
+            e.stopPropagation();
+            const idx = this.getAttribute('data-idx');
+            const img = data[idx];
+            fetch(`/image/${img.id}/detail`)
+              .then(res => res.json())
+              .then(detail => {
+                function formatDate(dateStr) {
+                  if (!dateStr) return '-';
+                  const d = new Date(dateStr);
+                  if (isNaN(d.getTime())) return '-';
+                  const yyyy = d.getFullYear();
+                  const mm = String(d.getMonth()+1).padStart(2, '0');
+                  const dd = String(d.getDate()).padStart(2, '0');
+                  const hh = String(d.getHours()).padStart(2, '0');
+                  const min = String(d.getMinutes()).padStart(2, '0');
+                  const ss = String(d.getSeconds()).padStart(2, '0');
+                  return `${yyyy}. ${mm}. ${dd}. ${hh}:${min}:${ss}`;
+                }
+                // 블로그 유입 정보
+                let blogUrl = '-';
+                let blogCreated = '-';
+                if (detail.referers && detail.referers.length > 0) {
+                  const ref = detail.referers[0];
+                  blogUrl = `<a href="${ref.referer}" target="_blank" style="color:#3575e1;text-decoration:underline;">${ref.referer}</a>`;
+                  blogCreated = formatDate(ref.firstVisit);
+                }
+                // 방문수, 유니크
+                const statBlock = `
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:#f8faff;border-radius:12px;padding:18px 32px;margin-bottom:18px;">
+                    <div style="font-size:1.08rem;"><b>전체 방문 수</b><div style="color:#1877f2;font-weight:700;font-size:1.25rem;">${detail.views}</div></div>
+                    <div style="font-size:1.08rem;"><b>방문 유저 수</b><div style="color:#1877f2;font-weight:700;font-size:1.25rem;">${detail.unique}</div></div>
+                  </div>
+                `;
+                // 블로그 주소/생성일자
+                const blogBlock = `
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:#f8faff;border-radius:12px;padding:18px 32px;margin-bottom:18px;">
+                    <div style="font-size:1.08rem;"><b>블로그 주소</b><div>${blogUrl}</div></div>
+                    <div style="font-size:1.08rem;"><b>생성일자</b><div>${blogCreated}</div></div>
+                  </div>
+                `;
+                // 접속 기록 표
+                let ipTable = '';
+                if (detail.ips && detail.ips.length > 0) {
+                  ipTable = `
+                    <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
+                      <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;">접속 로그</div>
+                      <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
+                        <thead>
+                          <tr style="background:#f4f6fa;">
+                            <th style="padding:8px 0;">IP</th>
+                            <th style="padding:8px 0;">User-Agent</th>
+                            <th style="padding:8px 0;">방문수</th>
+                          </tr>
+                        </thead>
+                        <tbody>` +
+                    detail.ips.map(ipinfo => {
+                      const ipv4 = (ipinfo.ip || '').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+                      return `<tr>
+                        <td style="padding:7px 0;">${ipv4 ? ipv4[0] : ipinfo.ip}</td>
+                        <td style="padding:7px 0;word-break:break-all;text-align:left;">${ipinfo.ua || '-'}</td>
+                        <td style="padding:7px 0;">${ipinfo.count}</td>
+                      </tr>`;
+                    }).join('') +
+                    `</tbody></table></div>`;
+                } else {
+                  ipTable = '<div style="background:#f8faff;border-radius:12px;padding:18px 32px;text-align:center;color:#888;">접속 기록 없음</div>';
+                }
+                // 파일명 + 엑셀 버튼 (상단 넉넉한 레이아웃)
+                const modalHeader = `
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:0 24px 0 24px;margin-bottom:18px;">
+                    <div style="font-size:1.22rem;font-weight:700;color:#1877f2;word-break:break-all;">${detail.filename}</div>
+                    <button id="excel-download-btn" style="padding:7px 22px;font-size:1.05rem;background:#19c37d;color:#fff;border:none;border-radius:7px;cursor:pointer;margin-left:32px;">엑셀 다운로드</button>
+                  </div>
+                `;
+                document.getElementById('modal-body').innerHTML =
+                  `<div style="padding:28px 28px 16px 28px;">
+                    ${modalHeader}
+                    <hr style="margin:12px 0;">
+                    ${statBlock}
+                    <hr style="margin:12px 0;">
+                    ${blogBlock}
+                    <hr style="margin:12px 0;">
+                    ${ipTable}
+                  </div>`;
+                document.getElementById('modal').style.display = 'flex';
+
+                // 엑셀 다운로드 기능(선택)
+                document.getElementById('excel-download-btn').onclick = function() {
+                  // 엑셀 다운로드 구현
+                  if (typeof XLSX === 'undefined') {
+                    alert('엑셀 라이브러리가 로드되지 않았습니다.');
+                    return;
+                  }
+                  // detail 객체는 현재 모달에 표시된 데이터와 동일
+                  // 블로그 시트
+                  const blogSheet = [
+                    ['블로그 링크', '전체 방문수', '방문 유저수', '생성일자'],
+                    [
+                      detail.blogUrl || '-',
+                      detail.views || 0,
+                      detail.unique || 0,
+                      detail.blogCreated ? formatDate(detail.blogCreated) : '-'
+                    ]
+                  ];
+                  // 유저 시트
+                  const userSheet = [
+                    ['블로그 링크', 'IP', 'User-Agent', '해당 유저 방문수']
+                  ];
+                  (detail.ips || []).forEach(row => {
+                    userSheet.push([
+                      detail.blogUrl || '-',
+                      row.ip,
+                      row.ua,
+                      row.count
+                    ]);
+                  });
+                  // 워크북 생성
+                  const wb = XLSX.utils.book_new();
+                  const wsBlog = XLSX.utils.aoa_to_sheet(blogSheet);
+                  const wsUser = XLSX.utils.aoa_to_sheet(userSheet);
+                  // 컬럼 너비 설정 (방문수만 좁게, 나머지는 넉넉히)
+                  wsBlog['!cols'] = [
+                    { wch: 60 }, // 블로그 링크
+                    { wch: 12 }, // 전체 방문수
+                    { wch: 14 }, // 방문 유저수
+                    { wch: 22 }  // 생성일자
+                  ];
+                  wsUser['!cols'] = [
+                    { wch: 60 }, // 블로그 링크
+                    { wch: 18 }, // IP
+                    { wch: 40 }, // User-Agent
+                    { wch: 10 }  // 방문수(좁게)
+                  ];
+                  XLSX.utils.book_append_sheet(wb, wsBlog, '블로그');
+                  XLSX.utils.book_append_sheet(wb, wsUser, 'User');
+                  XLSX.writeFile(wb, 'blog_image_stats.xlsx');
+                };
+              });
+          };
+        });
       });
-  });
-}
-// 페이지 로드 시 이미지 미리보기 모달 닫기 이벤트 한 번만 등록
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    var imgModal = document.getElementById('img-modal');
-    if (imgModal) {
-      imgModal.onclick = function(e) {
-        if (e.target === this) {
-          this.style.display = 'none';
-          document.getElementById('img-modal-img').src = '';
-        }
-      };
-    }
-  });
-} else {
-  var imgModal = document.getElementById('img-modal');
-  if (imgModal) {
-    imgModal.onclick = function(e) {
-      if (e.target === this) {
-        this.style.display = 'none';
-        document.getElementById('img-modal-img').src = '';
-      }
-    };
+    });
   }
-}
-// 이미지 미리보기 모달 이벤트 (이미지 클릭 시)
+
+// 이미지 미리보기 모달 닫기 이벤트
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.dashboard-img-thumb').forEach(imgEl => {
-    imgEl.onclick = function(e) {
-      e.stopPropagation();
-      const url = this.getAttribute('data-img-url');
-      const modal = document.getElementById('img-modal');
-      const modalImg = document.getElementById('img-modal-img');
-      modalImg.src = url;
-      modal.style.display = 'flex';
-    };
-  });
-  // 이미지 모달 닫기: 이미지 외 영역 클릭 시
   const imgModal = document.getElementById('img-modal');
   if (imgModal) {
     imgModal.onclick = function(e) {
@@ -376,11 +410,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('img-modal-img').src = '';
       }
     };
-    // 이미지 클릭 시 모달 닫히지 않게
-    const modalImg = document.getElementById('img-modal-img');
-    if (modalImg) {
-      modalImg.onclick = function(e) { e.stopPropagation(); };
-    }
   }
 });
 // 상세보기 모달 리디자인 (3번째 예시처럼)
