@@ -112,6 +112,45 @@ function isRealBlogPost(url) {
     );
 }
 
+// 봇/크롤러 체크 함수
+function isBotOrCrawler(userAgent) {
+    if (!userAgent) return true;
+    
+    const botPatterns = [
+        /bot/i,
+        /crawler/i,
+        /spider/i,
+        /facebookexternalhit/i,
+        /slurp/i,
+        /msie/i,
+        /trident/i,
+        /blueno/i,
+        /scrap/i,
+        /naver/i,
+        /googlebot/i,
+        /bingbot/i,
+        /yandex/i,
+        /baidu/i,
+        /duckduckbot/i,
+        /sogou/i,
+        /exabot/i,
+        /ia_archiver/i,
+        /archive.org/i,
+        /wget/i,
+        /curl/i,
+        /python-requests/i,
+        /java/i,
+        /httpclient/i,
+        /apache-httpclient/i,
+        /phantomjs/i,
+        /headless/i,
+        /selenium/i,
+        /puppeteer/i
+    ];
+
+    return botPatterns.some(pattern => pattern.test(userAgent));
+}
+
 // 이미지 업로드 라우트
 app.post('/upload', upload.single('image'), (req, res) => {
     console.log('req.body:', req.body);
@@ -226,32 +265,34 @@ app.get('/image/:id', async (req, res) => {
     }
 
     const referer = req.headers['referer'] || '';
+    const isBlogPost = isRealBlogPost(referer);
     const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
     const ua = req.headers['user-agent'] || '';
     const now = new Date();
 
-    // 1분 중복방지: IP+UA별 마지막 방문 시각
-    let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-    if (!ipInfo) {
-        img.ips.push({ 
-            ip, 
-            ua, 
-            count: 1, 
-            firstVisit: now.toISOString(), 
-            lastVisit: now.toISOString(), 
-            visits: [{ time: now.toISOString() }] 
-        });
-    } else {
-        const last = new Date(ipInfo.lastVisit);
-        if (now - last >= 60000) {
-            ipInfo.count++;
-            ipInfo.lastVisit = now.toISOString();
-            ipInfo.visits.push({ time: now.toISOString() });
+    // 블로그 본문에서만 통계 기록
+    if (!isBotOrCrawler(ua) && isBlogPost) {
+        // 1분 중복방지: IP+UA별 마지막 방문 시각
+        let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
+        if (!ipInfo) {
+            img.ips.push({ 
+                ip, 
+                ua, 
+                count: 1, 
+                firstVisit: now.toISOString(), 
+                lastVisit: now.toISOString(), 
+                visits: [{ time: now.toISOString() }] 
+            });
+        } else {
+            const last = new Date(ipInfo.lastVisit);
+            if (now - last >= 60000) {
+                ipInfo.count++;
+                ipInfo.lastVisit = now.toISOString();
+                ipInfo.visits.push({ time: now.toISOString() });
+            }
         }
-    }
 
-    // 블로그 URL 기록 (referer가 있으면 무조건 기록)
-    if (referer) {
+        // 블로그 URL 기록
         let refInfo = img.referers.find(x => x.referer === referer);
         if (!refInfo) {
             img.referers.push({ 
@@ -264,8 +305,8 @@ app.get('/image/:id', async (req, res) => {
             refInfo.count++;
             refInfo.lastVisit = now.toISOString();
         }
+        persistImages();
     }
-    persistImages();
 
     // Content-Type 설정
     const ext = path.extname(img.filename).toLowerCase();
