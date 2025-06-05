@@ -14,6 +14,10 @@ const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
 // 정적 파일 제공
 app.use(express.static('public'));
 app.use(express.json());
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    next();
+  });
 
 // 세션 설정
 app.use(session({
