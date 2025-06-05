@@ -165,12 +165,21 @@ app.post('/upload', upload.single('image'), (req, res) => {
 
 // 이미지 제공 라우트
 app.get('/image/:id', async (req, res) => {
+    console.log('Image request:', {
+        id: req.params.id,
+        referer: req.headers['referer'],
+        userAgent: req.headers['user-agent']
+    });
+
     const img = images.find(i => i.id === req.params.id);
     if (!img) {
+        console.log('Image not found:', req.params.id);
         return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
     }
+
     const filePath = path.join('/data', 'uploads', img.filename);
     if (!fs.existsSync(filePath)) {
+        console.log('File not found:', filePath);
         return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
     }
 
@@ -206,8 +215,11 @@ app.get('/image/:id', async (req, res) => {
                     refInfo.lastVisit = now.toISOString();
                 }
             }
-        } catch (e) { /* ignore fetch error */ }
+        } catch (e) { 
+            console.log('Fetch error:', e);
+        }
     }
+
     // Content-Type 설정
     const ext = path.extname(img.filename).toLowerCase();
     let contentType = 'application/octet-stream';
@@ -215,7 +227,15 @@ app.get('/image/:id', async (req, res) => {
     else if (ext === '.png') contentType = 'image/png';
     else if (ext === '.gif') contentType = 'image/gif';
     else if (ext === '.webp') contentType = 'image/webp';
-    res.set('Content-Type', contentType);
+
+    // CORS 헤더 추가
+    res.set({
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent',
+        'Cache-Control': 'public, max-age=31536000'
+    });
 
     // 반드시 이미지 파일을 전송!
     res.sendFile(filePath);
