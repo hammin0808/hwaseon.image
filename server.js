@@ -269,7 +269,6 @@ app.get('/image/:id', async (req, res) => {
 
     // 블로그 본문에서만 통계 기록
     if (!isBotOrCrawler(ua) && isBlogPost) {
-        // 1분 중복방지: IP+UA별 마지막 방문 시각
         let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
         if (!ipInfo) {
             img.ips.push({ 
@@ -281,12 +280,9 @@ app.get('/image/:id', async (req, res) => {
                 visits: [{ time: now.toISOString() }] 
             });
         } else {
-            const last = new Date(ipInfo.lastVisit);
-            if (now - last >= 60000) {
-                ipInfo.count++;
-                ipInfo.lastVisit = now.toISOString();
-                ipInfo.visits.push({ time: now.toISOString() });
-            }
+            ipInfo.count++;
+            ipInfo.lastVisit = now.toISOString();
+            ipInfo.visits.push({ time: now.toISOString() });
         }
 
         // 블로그 URL 기록

@@ -189,7 +189,7 @@ if (document.getElementById('dashboard-tbody')) {
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
-              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link'>${realReferers[0].referer}</a>`;
+              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' style='display:inline-block;max-width:180px;overflow-x:auto;white-space:nowrap;text-overflow:ellipsis;'>${realReferers[0].referer}</a>`;
             }
           }
           // 소유자 표시: admin만 초록색, 나머지는 기본
@@ -203,16 +203,16 @@ if (document.getElementById('dashboard-tbody')) {
           }
           return `
             <tr data-id="${imgId}" style="vertical-align:middle;">
-              <td style="padding:10px 8px;"><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"></td>
-              <td style="padding:10px 8px;">
+              <td style="padding:10px 8px;min-width:54px;max-width:54px;"><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"></td>
+              <td style="padding:10px 8px;min-width:220px;max-width:260px;">
                 <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
-                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" style="display:inline-block;max-width:220px;overflow-x:auto;vertical-align:middle;">${fullUrl}</a>
+                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" style="display:inline-block;max-width:180px;overflow-x:auto;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
               </td>
-              <td style="padding:10px 8px;">${mainReferer}</td>
-              <td style="word-break:break-all;padding:10px 8px;">${img.memo || '-'}</td>
-              <td style="padding:10px 8px;text-align:center;">${ownerCell}</td>
-              <td style="padding:10px 8px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
-              <td style="padding:10px 8px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
+              <td style="padding:10px 8px;min-width:120px;max-width:180px;">${mainReferer}</td>
+              <td style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:260px;">${img.memo || '-'}</td>
+              <td style="padding:10px 8px;min-width:80px;max-width:120px;text-align:center;">${ownerCell}</td>
+              <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
+              <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
             </tr>
           `;
         }).join('');
