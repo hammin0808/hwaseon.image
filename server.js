@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const fetch = require('node-fetch');
 const app = express();
 const PORT = 3000;
@@ -10,6 +11,7 @@ const PORT = 3000;
 const DATA_DIR = '/data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
+const MAX_DAILY_TRAFFIC = 3000;
 
 // 정적 파일 제공
 app.use(express.static('public'));
@@ -24,7 +26,16 @@ app.use(session({
     secret: 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }
+    store: new FileStore({
+        path: path.join(DATA_DIR, 'sessions'),
+        ttl: 24 * 60 * 60,
+        reapInterval: 60 * 60,
+        retries: 0
+    }),
+    cookie: { 
+        secure: false,
+        maxAge: 24 * 60 * 60 * 1000 // 24시간
+    }
 }));
 
 // 파일에서 데이터 불러오기/저장 함수
@@ -41,8 +52,6 @@ function saveJson(file, data) {
     fs.writeFileSync(file, JSON.stringify(data, null, 2));
   } catch (e) { console.error('saveJson error:', e); }
 }
-// /data 폴더 없으면 생성
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
 
 // 1. users, images 불러오기
 let users = loadJson(USERS_FILE, []);
@@ -199,67 +208,64 @@ app.get('/image/:id', async (req, res) => {
         return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
     }
 
+    // 하루 트래픽 제한 (3,000회)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (!img.todayDate || img.todayDate !== todayStr) {
+        img.todayDate = todayStr;
+        img.todayCount = 0;
+    }
+    if ((img.todayCount || 0) >= MAX_DAILY_TRAFFIC) {
+        return res.status(429).json({ error: '하루 트래픽(3,000회) 초과' });
+    }
+    img.todayCount = (img.todayCount || 0) + 1;
+
     const filePath = path.join('/data', 'uploads', img.filename);
     if (!fs.existsSync(filePath)) {
         console.log('File not found:', filePath);
         return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
     }
 
-    // 방문수/로그 기록 (네이버 블로그 Referer 체크 완화)
     const referer = req.headers['referer'] || '';
-    if (referer && isRealBlogPost(referer)) {
-        console.log('Processing visit from blog:', referer);
-        const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
-        const ua = req.headers['user-agent'] || '';
-        const now = new Date();
-        
-        // 1분 중복방지: IP+UA별 마지막 방문 시각
-        let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-        if (!ipInfo) {
-            img.ips.push({ 
-                ip, 
-                ua, 
-                count: 1, 
-                firstVisit: now.toISOString(), 
-                lastVisit: now.toISOString(), 
-                visits: [{ time: now.toISOString() }] 
-            });
-            console.log('New visitor:', { ip, ua });
-        } else {
-            const last = new Date(ipInfo.lastVisit);
-            if (now - last >= 60000) {
-                ipInfo.count++;
-                ipInfo.lastVisit = now.toISOString();
-                ipInfo.visits.push({ time: now.toISOString() });
-                console.log('Returning visitor:', { ip, ua, count: ipInfo.count });
-            }
-        }
+    const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
+    const ua = req.headers['user-agent'] || '';
+    const now = new Date();
 
-        // Referer 트래킹 (블로그 URL 기록 로직 개선)
-        try {
-            // 블로그 URL이 이미 기록되어 있는지 확인
-            let refInfo = img.referers.find(x => x.referer === referer);
-            if (!refInfo) {
-                // 새로운 블로그 URL 추가
-                img.referers.push({ 
-                    referer, 
-                    count: 1, 
-                    firstVisit: now.toISOString(), 
-                    lastVisit: now.toISOString() 
-                });
-                console.log('New blog URL recorded:', referer);
-            } else {
-                // 기존 블로그 URL 업데이트
-                refInfo.count++;
-                refInfo.lastVisit = now.toISOString();
-                console.log('Existing blog URL updated:', referer);
-            }
-            // 변경사항 저장
-            persistImages();
-        } catch (e) { 
-            console.log('Error processing referer:', e);
+    // 1분 중복방지: IP+UA별 마지막 방문 시각
+    let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
+    if (!ipInfo) {
+        img.ips.push({ 
+            ip, 
+            ua, 
+            count: 1, 
+            firstVisit: now.toISOString(), 
+            lastVisit: now.toISOString(), 
+            visits: [{ time: now.toISOString() }] 
+        });
+    } else {
+        const last = new Date(ipInfo.lastVisit);
+        if (now - last >= 60000) {
+            ipInfo.count++;
+            ipInfo.lastVisit = now.toISOString();
+            ipInfo.visits.push({ time: now.toISOString() });
         }
     }
+
+    // 블로그 URL 기록 (referer가 있으면 무조건 기록)
+    if (referer) {
+        let refInfo = img.referers.find(x => x.referer === referer);
+        if (!refInfo) {
+            img.referers.push({ 
+                referer, 
+                count: 1, 
+                firstVisit: now.toISOString(), 
+                lastVisit: now.toISOString() 
+            });
+        } else {
+            refInfo.count++;
+            refInfo.lastVisit = now.toISOString();
+        }
+    }
+    persistImages();
 
     // Content-Type 설정
     const ext = path.extname(img.filename).toLowerCase();
@@ -306,13 +312,13 @@ app.get('/image/:id/detail', (req, res) => {
                 }
             });
         }
-        // 블로그 referer(실제 이미지 포함된 글만)
-        let blogReferers = (img.referers || []).filter(r => isRealBlogPost(r.referer));
-        blogReferers.sort((a, b) => new Date(a.firstVisit) - new Date(b.firstVisit));
+        // 블로그 referer(가장 많이 불러간 것, 없으면 첫 번째)
         let blogUrl = null, blogCreated = null;
-        if (blogReferers.length > 0) {
-            blogUrl = blogReferers[0].referer;
-            blogCreated = blogReferers[0].firstVisit;
+        if (img.referers && img.referers.length > 0) {
+            // 가장 많이 불러간 referer, 없으면 첫 번째
+            const sorted = img.referers.slice().sort((a, b) => b.count - a.count || new Date(a.firstVisit) - new Date(b.firstVisit));
+            blogUrl = sorted[0].referer;
+            blogCreated = sorted[0].firstVisit;
         }
         // 접속 로그(IP, UA, 방문수)
         const ips = (img.ips || []).map(x => ({ ip: x.ip, ua: x.ua, count: x.count }));
@@ -324,7 +330,8 @@ app.get('/image/:id/detail', (req, res) => {
             views,
             todayVisits,
             unique,
-            ips
+            ips,
+            referers: img.referers || []
         });
     } catch (error) {
         console.error('상세 정보 조회 오류:', error);

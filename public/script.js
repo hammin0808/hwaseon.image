@@ -293,7 +293,6 @@ if (document.getElementById('dashboard-tbody')) {
                 const blogBlock = `
                   <div style="display:flex;justify-content:space-between;align-items:center;background:#f8faff;border-radius:12px;padding:18px 32px;margin-bottom:18px;">
                     <div style="font-size:1.08rem;"><b>블로그 주소</b><div>${blogUrl}</div></div>
-                    <div style="font-size:1.08rem;"><b>생성일자</b><div>${blogCreated}</div></div>
                   </div>
                 `;
                 // 접속 기록 표
@@ -612,4 +611,24 @@ if (location.pathname.endsWith('admin.html')) {
   };
   // 로그아웃
   document.getElementById('adminLogoutBtn').onclick = logout;
+}
+
+
+// 대시보드에서 관리자만 사용자 등록 버튼 보이기
+if (document.getElementById('registerUserBtn')) {
+  fetch('/me', { credentials: 'include' })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.role === 'admin') {
+        document.getElementById('registerUserBtn').style.display = '';
+      } else {
+        document.getElementById('registerUserBtn').style.display = 'none';
+      }
+    })
+    .catch(() => {
+      document.getElementById('registerUserBtn').style.display = 'none';
+    });
+  document.getElementById('registerUserBtn').onclick = function() {
+    location.href = 'register.html';
+  };
 } 
