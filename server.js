@@ -57,15 +57,15 @@ function persistUsers() { saveJson(USERS_FILE, users); }
 function persistImages() { saveJson(IMAGES_FILE, images); }
 
 // uploads 디렉토리가 없으면 생성
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = path.join('/data', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
+    fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // 이미지 저장소 설정
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/');
+        cb(null, uploadsDir);
     },
     filename: (req, file, cb) => {
         // 파일명 중복 방지를 위해 타임스탬프 추가
@@ -427,7 +427,7 @@ app.delete('/image/:id', (req, res) => {
             return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
         }
         // 파일 삭제
-        const filePath = path.join(__dirname, 'uploads', images[idx].filename);
+        const filePath = path.join('/data', 'uploads', images[idx].filename);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
