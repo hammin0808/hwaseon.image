@@ -278,9 +278,12 @@ if (document.getElementById('dashboard-tbody')) {
                 let blogUrl = '-';
                 let blogCreated = '-';
                 if (detail.referers && detail.referers.length > 0) {
-                  const ref = detail.referers[0];
-                  blogUrl = `<a href="${ref.referer}" target="_blank" style="color:#3575e1;text-decoration:underline;">${ref.referer}</a>`;
-                  blogCreated = formatDate(ref.firstVisit);
+                  const realReferers = detail.referers.filter(ref => isRealBlogPost(ref.referer));
+                  if (realReferers.length > 0) {
+                    const ref = realReferers[0];
+                    blogUrl = `<a href="${ref.referer}" target="_blank" style="color:#3575e1;text-decoration:underline;">${ref.referer}</a>`;
+                    blogCreated = formatDate(ref.firstVisit);
+                  }
                 }
                 // 방문수, 유니크
                 const statBlock = `
