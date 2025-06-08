@@ -112,44 +112,6 @@ function isRealBlogPost(url) {
     return blogPattern.test(url) && !/PostWriteForm\.naver/.test(url);
 }
 
-// 봇/크롤러 체크 함수
-function isBotOrCrawler(userAgent) {
-    if (!userAgent) return true;
-    
-    const botPatterns = [
-        /bot/i,
-        /crawler/i,
-        /spider/i,
-        /facebookexternalhit/i,
-        /slurp/i,
-        /msie/i,
-        /trident/i,
-        /blueno/i,
-        /scrap/i,
-        /naver/i,
-        /googlebot/i,
-        /bingbot/i,
-        /yandex/i,
-        /baidu/i,
-        /duckduckbot/i,
-        /sogou/i,
-        /exabot/i,
-        /ia_archiver/i,
-        /archive.org/i,
-        /wget/i,
-        /curl/i,
-        /python-requests/i,
-        /java/i,
-        /httpclient/i,
-        /apache-httpclient/i,
-        /phantomjs/i,
-        /headless/i,
-        /selenium/i,
-        /puppeteer/i
-    ];
-
-    return botPatterns.some(pattern => pattern.test(userAgent));
-}
 
 // 이미지 업로드 라우트
 app.post('/upload', upload.single('image'), (req, res) => {
@@ -303,6 +265,7 @@ app.get('/image/:id', async (req, res) => {
     res.sendFile(filePath);
 });
 
+
 // 이미지 상세 정보 반환 라우트
 app.get('/image/:id/detail', (req, res) => {
     try {
@@ -310,10 +273,15 @@ app.get('/image/:id/detail', (req, res) => {
         if (!img) {
             return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
         }
-        // 전체 방문수: img.views
+
+        // ✅ 조회수: img.views 그대로 사용
         const views = img.views || 0;
-        // 접속로그: img.ips 그대로 전달
-        // 오늘 방문수
+
+        // ✅ 방문 유저 수: ip+ua 조합의 개수
+        let unique = img.ips ? img.ips.length : 0;
+        if (unique > views) unique = views;
+
+        // ✅ 오늘 방문수 계산
         const todayStr = new Date().toISOString().slice(0, 10);
         let todayVisits = 0;
         if (img.ips) {
@@ -323,26 +291,32 @@ app.get('/image/:id/detail', (req, res) => {
                 }
             });
         }
-        // 방문 유저수: ip 개수
-        const unique = img.ips ? img.ips.length : 0;
-        // 블로그 referer(가장 많이 불러간 것, 없으면 첫 번째)
+
+        // ✅ 가장 많이 불러간 블로그 referer (없으면 첫 번째)
         let blogUrl = null, blogCreated = null;
         if (img.referers && img.referers.length > 0) {
-            // 가장 많이 불러간 referer, 없으면 첫 번째
-            const sorted = img.referers.slice().sort((a, b) => b.count - a.count || new Date(a.firstVisit) - new Date(b.firstVisit));
+            const sorted = img.referers.slice().sort((a, b) =>
+                b.count - a.count || new Date(a.firstVisit) - new Date(b.firstVisit)
+            );
             blogUrl = sorted[0].referer;
             blogCreated = sorted[0].firstVisit;
         }
-        // 접속 로그(IP, UA, 방문수)
-        const ips = (img.ips || []).map(x => ({ ip: x.ip, ua: x.ua, count: x.count }));
+
+        // ✅ IP + UA + 방문수 정리
+        const ips = (img.ips || []).map(x => ({
+            ip: x.ip,
+            ua: x.ua,
+            count: x.count
+        }));
+
         res.json({
             id: img.id,
             filename: img.filename,
             blogUrl,
             blogCreated,
-            views,
-            todayVisits,
-            unique,
+            views,         // ✅ 서버 내 카운트된 조회수 기준
+            todayVisits,   // 오늘 총 방문 수
+            unique,        // 고유 접속자 수
             ips,
             referers: img.referers || []
         });
@@ -351,6 +325,10 @@ app.get('/image/:id/detail', (req, res) => {
         res.status(500).json({ error: '상세 정보 조회 중 오류가 발생했습니다.' });
     }
 });
+
+
+
+
 
 // 로그인 페이지 라우트
 app.get('/login', (req, res) => {
