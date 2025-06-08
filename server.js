@@ -265,54 +265,31 @@ app.get('/image/:id', async (req, res) => {
     }
 
     const referer = req.headers['referer'] || '';
-    const isBlogPost = isRealBlogPost(referer);
     const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
     const ua = req.headers['user-agent'] || '';
     const now = new Date();
 
-    // 블로그 본문에서만 통계 기록 (봇/크롤러 제외)
-    if (!isBotOrCrawler(ua) && isBlogPost) {
-        // 방문수 증가
-        img.views = (img.views || 0) + 1;
-        
-        // IP/UA 정보 기록 (유니크 방문자 수 계산용)
-        let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-        if (!ipInfo) {
-            img.ips.push({ 
-                ip, 
-                ua, 
-                count: 1, 
-                firstVisit: now.toISOString(), 
-                lastVisit: now.toISOString(), 
-                visits: [{ time: now.toISOString() }] 
-            });
-            console.log(`[NEW] IP: ${ip}, UA: ${ua}, count: 1`);
-        } else {
-            ipInfo.count++;
-            ipInfo.lastVisit = now.toISOString();
-            ipInfo.visits.push({ time: now.toISOString() });
-            console.log(`[INCREMENT] IP: ${ip}, UA: ${ua}, count: ${ipInfo.count}`);
-        }
+    // 무조건 조회수 증가
+    img.views = (img.views || 0) + 1;
 
-        // 블로그 URL 기록
-        let refInfo = img.referers.find(x => x.referer === referer);
-        if (!refInfo) {
-            img.referers.push({ 
-                referer, 
-                count: 1, 
-                firstVisit: now.toISOString(), 
-                lastVisit: now.toISOString() 
-            });
-            console.log(`[NEW] Blog URL: ${referer}, count: 1`);
-        } else {
-            refInfo.count++;
-            refInfo.lastVisit = now.toISOString();
-            console.log(`[INCREMENT] Blog URL: ${referer}, count: ${refInfo.count}`);
-        }
-        
-        // 변경사항 저장
-        persistImages();
+    // 접속로그(IP+UA별 방문수 누적, 중복방지 X)
+    if (!img.ips) img.ips = [];
+    let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
+    if (!ipInfo) {
+        img.ips.push({
+            ip,
+            ua,
+            count: 1,
+            firstVisit: now.toISOString(),
+            lastVisit: now.toISOString(),
+            visits: [{ time: now.toISOString() }]
+        });
+    } else {
+        ipInfo.count++;
+        ipInfo.lastVisit = now.toISOString();
+        ipInfo.visits.push({ time: now.toISOString() });
     }
+    persistImages();
 
     // Content-Type 설정
     const ext = path.extname(img.filename).toLowerCase();
@@ -333,13 +310,9 @@ app.get('/image/:id/detail', (req, res) => {
         if (!img) {
             return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
         }
-
-        // 유니크 방문자 수(IP+UA)
-        const unique = img.ips ? img.ips.length : 0;
-        
-        // 전체 방문수 (실제 블로그 글 조회 수)
+        // 전체 방문수: img.views
         const views = img.views || 0;
-        
+        // 접속로그: img.ips 그대로 전달
         // 오늘 방문수
         const todayStr = new Date().toISOString().slice(0, 10);
         let todayVisits = 0;
@@ -350,7 +323,8 @@ app.get('/image/:id/detail', (req, res) => {
                 }
             });
         }
-
+        // 방문 유저수: ip 개수
+        const unique = img.ips ? img.ips.length : 0;
         // 블로그 referer(가장 많이 불러간 것, 없으면 첫 번째)
         let blogUrl = null, blogCreated = null;
         if (img.referers && img.referers.length > 0) {
