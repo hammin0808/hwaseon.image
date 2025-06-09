@@ -102,13 +102,15 @@ const upload = multer({
     }
 });
 
+
+
 // 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
 function isRealBlogPost(url) {
     if (!url) return false;
     // 네이버 블로그 본문 URL 패턴  
-    // 예: https://blog.naver.com/username/PostView.naver?blogId=xxx&logNo=xxx
-    // 예: https://m.blog.naver.com/username/PostView.naver?blogId=xxx&logNo=xxx
-    const blogPattern = /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/[^/]+\/PostView\.naver\?blogId=[^&]+&logNo=\d+/;
+    // 예: https://blog.naver.com/username/PostView.naver?blogId=xxx&logNo=xxx (이전 형식)
+    // 예: https://blog.naver.com/blogId/logNo (새로운 형식)
+    const blogPattern = /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/PostView\.naver\?blogId=[^&]+&logNo=\d+|[^/]+\/\d+)$/;
     return blogPattern.test(url) && !/PostWriteForm\.naver/.test(url);
 }
 
@@ -189,11 +191,11 @@ app.options('/image/:id', (req, res) => {
     res.status(204).end();
 });
 
+
 // 이미지 제공 라우트
 app.get('/image/:id', async (req, res) => {
-    // ID에서 확장자 제거
     const id = req.params.id.replace(/\.[^/.]+$/, '');
-    
+
     console.log('Image request:', {
         originalId: req.params.id,
         cleanedId: id,
@@ -231,26 +233,42 @@ app.get('/image/:id', async (req, res) => {
     const ua = req.headers['user-agent'] || '';
     const now = new Date();
 
-    // 무조건 조회수 증가
-    img.views = (img.views || 0) + 1;
+    // 기본 속성 초기화
+    img.views ??= 0;
+    if (!Array.isArray(img.ips)) img.ips = [];
+    if (!Array.isArray(img.referers)) img.referers = [];
 
-    // 접속로그(IP+UA별 방문수 누적, 중복방지 X)
-    if (!img.ips) img.ips = [];
-    let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-    if (!ipInfo) {
-        img.ips.push({
-            ip,
-            ua,
-            count: 1,
-            firstVisit: now.toISOString(),
-            lastVisit: now.toISOString(),
-            visits: [{ time: now.toISOString() }]
-        });
-    } else {
-        ipInfo.count++;
-        ipInfo.lastVisit = now.toISOString();
-        ipInfo.visits.push({ time: now.toISOString() });
+    // 네이버 블로그에서만 조회수 및 방문자 기록
+    if (isRealBlogPost(referer)) {
+        img.views += 1;
+
+        // 접속로그(IP+UA별 방문수 누적)
+        let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
+        if (!ipInfo) {
+            img.ips.push({
+                ip,
+                ua,
+                count: 1,
+                visits: [{ time: now.toISOString() }]
+            });
+        } else {
+            ipInfo.count++;
+            if (!Array.isArray(ipInfo.visits)) ipInfo.visits = [];
+            ipInfo.visits.push({ time: now.toISOString() });
+        }
+
+        // 리퍼러 로그 기록
+        const existing = img.referers.find(r => r.referer === referer);
+        if (existing) {
+            existing.count = (existing.count || 0) + 1;
+        } else {
+            img.referers.push({
+                referer,
+                count: 1
+            });
+        }
     }
+
     persistImages();
 
     // Content-Type 설정
@@ -260,10 +278,11 @@ app.get('/image/:id', async (req, res) => {
     else if (ext === '.png') contentType = 'image/png';
     else if (ext === '.gif') contentType = 'image/gif';
     else if (ext === '.webp') contentType = 'image/webp';
-    
+
     res.set('Content-Type', contentType);
     res.sendFile(filePath);
 });
+
 
 
 // 이미지 상세 정보 반환 라우트
@@ -296,10 +315,10 @@ app.get('/image/:id/detail', (req, res) => {
         let blogUrl = null, blogCreated = null;
         if (img.referers && img.referers.length > 0) {
             const sorted = img.referers.slice().sort((a, b) =>
-                b.count - a.count || new Date(a.firstVisit) - new Date(b.firstVisit)
+                b.count - a.count
             );
             blogUrl = sorted[0].referer;
-            blogCreated = sorted[0].firstVisit;
+            blogCreated = sorted[0].createdAt;
         }
 
         // ✅ IP + UA + 방문수 정리
