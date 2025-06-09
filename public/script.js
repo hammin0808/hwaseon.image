@@ -1,8 +1,8 @@
 // 네이버 블로그 본문 URL만 남기는 함수 (최상단에 선언)
 function isRealBlogPost(url) {
   if (!url) return false;
-  // 네이버 블로그 도메인 + /숫자(글번호)로 끝나거나, PostView.naver가 포함된 주소
-  return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/[^/]+(\/\d+|\/PostView\.naver)/.test(url);
+  // /아이디/숫자 또는 /PostView.naver?blogId=...&logNo=... 형식 모두 허용
+  return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/\d+|PostView\.naver\?blogId=[^&]+&logNo=\d+)/.test(url);
 }
 // index.html
 if (document.getElementById('uploadForm')) {

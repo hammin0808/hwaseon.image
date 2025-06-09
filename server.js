@@ -109,10 +109,18 @@ const upload = multer({
 // 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
 function isRealBlogPost(url) {
     if (!url) return false;
-    // 네이버 블로그 도메인 + /숫자(글번호)로 끝나거나, PostView.naver가 포함된 주소
-    return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/[^/]+(\/\d+|\/PostView\.naver)/.test(url);
+    // /아이디/숫자 또는 /PostView.naver?blogId=...&logNo=... 형식 모두 허용
+    return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/\d+|PostView\.naver\?blogId=[^&]+&logNo=\d+)/.test(url);
 }
 
+function isNaverBlogReferer(url) {
+  if (!url) return false;
+  return /^https?:\/\/(blog|m\.blog)\.naver\.com\//.test(url);
+}
+function isMySiteReferer(url) {
+  if (!url) return false;
+  return /hwaseon-image\.com|onrender\.com/.test(url);
+}
 
 // 이미지 업로드 라우트
 app.post('/upload', upload.single('image'), (req, res) => {
@@ -238,9 +246,8 @@ app.get('/image/:id', async (req, res) => {
     if (!Array.isArray(img.referers)) img.referers = [];
 
     // 네이버 블로그에서만 조회수 및 방문자 기록
-    if (isRealBlogPost(referer)) {
+    if (isNaverBlogReferer(referer) && !isMySiteReferer(referer)) {
         img.views += 1;
-
         // 접속로그(IP+UA별 방문수 누적)
         let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
         if (!ipInfo) {
@@ -255,7 +262,6 @@ app.get('/image/:id', async (req, res) => {
             if (!Array.isArray(ipInfo.visits)) ipInfo.visits = [];
             ipInfo.visits.push({ time: now.toISOString() });
         }
-
         // 리퍼러 로그 기록
         const existing = img.referers.find(r => r.referer === referer);
         if (existing) {
