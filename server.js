@@ -447,48 +447,6 @@ app.get('/dashboard.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// 대시보드 데이터 엑셀 다운로드
-app.get('/dashboard-excel', (req, res) => {
-    try {
-        if (!req.session.user) {
-            return res.status(401).json({ error: 'Not authenticated' });
-        }
-
-        // 관리자: 전체(소유자 없는 것도), 일반 사용자: 본인만
-        const filteredImages = req.session.user.role === 'admin' 
-            ? images 
-            : images.filter(img => img.owner === req.session.user.id);
-
-        // CSV 형식으로 데이터 변환
-        const csvData = filteredImages.map(img => {
-            const blogUrl = img.referers && img.referers.length > 0 
-                ? img.referers.sort((a, b) => b.count - a.count)[0].referer 
-                : '';
-            return [
-                `https://hwaseon-image.com/image/${img.id}`,
-                blogUrl,
-                img.memo || '',
-                img.views || 0
-            ].join(',');
-        });
-
-        // CSV 헤더 추가
-        const csvContent = [
-            ['이미지 링크', '블로그 URL', '메모', '총 방문수'].join(','),
-            ...csvData
-        ].join('\n');
-
-        // 응답 헤더 설정
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.csv');
-
-        res.send(csvContent);
-    } catch (error) {
-        console.error('Excel download error:', error);
-        res.status(500).json({ error: '엑셀 다운로드 중 오류가 발생했습니다.' });
-    }
-});
-
 // 사용자 목록 조회 라우트
 app.get('/users', (req, res) => {
     try {

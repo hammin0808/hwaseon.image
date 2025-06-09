@@ -137,12 +137,18 @@
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;min-width:0;">
         <span id="userInfo" style="color:#19c37d;font-weight:700;font-size:1.18rem;min-width:90px;text-align:right;">&nbsp;</span>
         <button onclick="location.href='index.html'" class="dashboard-btn-blue" style="font-size:1.05rem;padding:10px 20px;min-width:90px;">홈으로</button>
+        <button id="excelDownload" class="dashboard-btn-blue" style="background:#198754;font-size:1.05rem;padding:10px 20px;min-width:120px;white-space:nowrap;margin-left:8px;"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
         <button id="registerUserBtn" class="dashboard-btn-blue" style="background:#19c37d;font-size:1.05rem;padding:10px 20px;min-width:110px;white-space:nowrap;">사용자 등록</button>
         <button id="logoutBtn" class="dashboard-btn-blue" style="background:#888;font-size:1.05rem;padding:10px 20px;min-width:90px;white-space:nowrap;">로그아웃</button>
       </div>
     </div>
     <div class="container mt-4">
       <h2>대시보드</h2>
+      <div class="mb-3">
+        <button id="excelDownload" class="btn btn-success">
+          <i class="fas fa-file-excel"></i> 엑셀 다운로드
+        </button>
+      </div>
       <div class="table-responsive">
         <table class="dashboard-table" style="font-size:1.18rem;width:100%;min-width:1100px;">
           <thead>
@@ -175,43 +181,5 @@
     </div>
   </div>
   <script src="script.js"></script>
-  <script>
-    // 엑셀 다운로드 버튼 이벤트 리스너
-    document.getElementById('excelDownload').addEventListener('click', async () => {
-      try {
-        const response = await fetch('/dashboard-excel');
-        if (!response.ok) {
-          throw new Error('엑셀 다운로드 실패');
-        }
-        
-        // Blob으로 변환
-        const blob = await response.blob();
-        
-        // 다운로드 링크 생성
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'dashboard_data.csv';
-        document.body.appendChild(a);
-        a.click();
-        
-        // 정리
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error('엑셀 다운로드 오류:', error);
-        alert('엑셀 다운로드 중 오류가 발생했습니다.');
-      }
-    });
-  </script>
-  <div class="nav-buttons">
-    <span id="userInfo"></span>
-    <a href="/" class="nav-button">홈으로</a>
-    <button id="excelDownload" class="nav-button">
-        <i class="fas fa-file-excel"></i> 엑셀 다운로드
-    </button>
-    <button id="registerBtn" class="nav-button">사용자 등록</button>
-    <button id="logoutBtn" class="nav-button">로그아웃</button>
-  </div>
 </body>
 </html> 

@@ -636,4 +636,25 @@ if (document.getElementById('registerUserBtn')) {
   document.getElementById('registerUserBtn').onclick = function() {
     location.href = 'register.html';
   };
-} 
+}
+
+document.getElementById('excelDownload').addEventListener('click', async () => {
+    try {
+        const response = await fetch('/dashboard-excel');
+        if (!response.ok) {
+            throw new Error('엑셀 다운로드 실패');
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dashboard_data.csv';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (error) {
+        console.error('엑셀 다운로드 오류:', error);
+        alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    }
+}); 
