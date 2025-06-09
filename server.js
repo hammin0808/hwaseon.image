@@ -558,7 +558,41 @@ app.delete('/image/:id', (req, res) => {
     }
 });
 
-
+// 대시보드 데이터 엑셀 다운로드
+app.get('/dashboard-excel', (req, res) => {
+    try {
+        if (!req.session.user) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+        // 관리자: 전체, 일반 사용자: 본인만
+        const filteredImages = req.session.user.role === 'admin'
+            ? images
+            : images.filter(img => img.owner === req.session.user.id);
+        // CSV 데이터 생성
+        const csvData = filteredImages.map(img => {
+            const blogUrl = img.referers && img.referers.length > 0
+                ? img.referers.sort((a, b) => b.count - a.count)[0].referer
+                : '';
+            return [
+                `https://hwaseon-image.com/image/${img.id}`,
+                blogUrl,
+                img.memo || '',
+                img.views || 0
+            ].join(',');
+        });
+        // CSV 헤더 추가
+        const csvContent = [
+            ['이미지 링크', '블로그 URL', '메모', '총 방문수'].join(','),
+            ...csvData
+        ].join('\n');
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.csv');
+        res.send(csvContent);
+    } catch (error) {
+        console.error('Excel download error:', error);
+        res.status(500).json({ error: '엑셀 다운로드 중 오류가 발생했습니다.' });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
