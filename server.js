@@ -569,31 +569,32 @@ app.get('/dashboard-excel', async (req, res) => {
             ? images
             : images.filter(img => img.owner === req.session.user.id);
 
-        // 워크북/시트 생성
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Dashboard');
 
-        // 헤더 추가
-        worksheet.addRow(['이미지 링크', '블로그 URL', '메모', '총 방문수']);
+        // 열 정의 및 넓이 지정
+        worksheet.columns = [
+            { header: '이미지 링크', key: 'image', width: 40 },
+            { header: '블로그 URL', key: 'blog', width: 40 },
+            { header: '메모', key: 'memo', width: 30 },
+            { header: '총 방문수', key: 'views', width: 12 }
+        ];
 
         // 데이터 추가
         filteredImages.forEach(img => {
             const blogUrl = img.referers && img.referers.length > 0
                 ? img.referers.sort((a, b) => b.count - a.count)[0].referer
                 : '';
-            worksheet.addRow([
-                `https://hwaseon-image.com/image/${img.id}`,
-                blogUrl,
-                img.memo || '',
-                img.views || 0
-            ]);
+            worksheet.addRow({
+                image: `https://hwaseon-image.com/image/${img.id}`,
+                blog: blogUrl,
+                memo: img.memo || '',
+                views: img.views || 0
+            });
         });
 
-        // 응답 헤더
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.xlsx');
-
-        // 파일 스트림으로 전송
         await workbook.xlsx.write(res);
         res.end();
     } catch (error) {
