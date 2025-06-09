@@ -1,6 +1,8 @@
 // 네이버 블로그 본문 URL만 남기는 함수 (최상단에 선언)
 function isRealBlogPost(url) {
-  return /PostView\.naver\?blogId=.+&logNo=/.test(url);
+  if (!url) return false;
+  // 네이버 블로그 도메인 + /숫자(글번호)로 끝나거나, PostView.naver가 포함된 주소
+  return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/[^/]+(\/\d+|\/PostView\.naver)/.test(url);
 }
 // index.html
 if (document.getElementById('uploadForm')) {
@@ -285,11 +287,11 @@ if (document.getElementById('dashboard-tbody')) {
                     blogCreated = formatDate(ref.firstVisit);
                   }
                 }
-                // 방문수, 유니크
+                // 방문수, 오늘 방문수
                 const statBlock = `
                   <div style="display:flex;justify-content:space-between;align-items:center;background:#f8faff;border-radius:12px;padding:18px 32px;margin-bottom:18px;">
-                    <div style="font-size:1.08rem;"><b>전체 방문 수</b><div style="color:#1877f2;font-weight:700;font-size:1.25rem;">${detail.views}</div></div>
-                    <div style="font-size:1.08rem;"><b>방문 유저 수</b><div style="color:#1877f2;font-weight:700;font-size:1.25rem;">${detail.unique}</div></div>
+                    <div style="font-size:1.08rem;"><b>총 방문수</b><div style="color:#1877f2;font-weight:700;font-size:1.25rem;">${detail.views}</div></div>
+                    <div style="font-size:1.08rem;"><b>오늘 총 방문수</b><div style="color:#1877f2;font-weight:700;font-size:1.25rem;">${detail.todayVisits}</div></div>
                   </div>
                 `;
                 // 블로그 주소/생성일자
@@ -354,11 +356,11 @@ if (document.getElementById('dashboard-tbody')) {
                   // detail 객체는 현재 모달에 표시된 데이터와 동일
                   // 블로그 시트
                   const blogSheet = [
-                    ['블로그 링크', '전체 방문수', '방문 유저수', '생성일자'],
+                    ['블로그 링크', '총 방문수', '오늘 총 방문수', '생성일자'],
                     [
                       detail.blogUrl || '-',
                       detail.views || 0,
-                      detail.unique || 0,
+                      detail.todayVisits || 0,
                       detail.blogCreated ? formatDate(detail.blogCreated) : '-'
                     ]
                   ];
@@ -381,8 +383,8 @@ if (document.getElementById('dashboard-tbody')) {
                   // 컬럼 너비 설정 (방문수만 좁게, 나머지는 넉넉히)
                   wsBlog['!cols'] = [
                     { wch: 60 }, // 블로그 링크
-                    { wch: 12 }, // 전체 방문수
-                    { wch: 14 }, // 방문 유저수
+                    { wch: 12 }, // 총 방문수
+                    { wch: 14 }, // 오늘 총 방문수
                     { wch: 22 }  // 생성일자
                   ];
                   wsUser['!cols'] = [

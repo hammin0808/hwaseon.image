@@ -53,6 +53,8 @@ function saveJson(file, data) {
   } catch (e) { console.error('saveJson error:', e); }
 }
 
+
+
 // 1. users, images 불러오기
 let users = loadJson(USERS_FILE, []);
 let images = loadJson(IMAGES_FILE, []);
@@ -107,11 +109,8 @@ const upload = multer({
 // 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
 function isRealBlogPost(url) {
     if (!url) return false;
-    // 네이버 블로그 본문 URL 패턴  
-    // 예: https://blog.naver.com/username/PostView.naver?blogId=xxx&logNo=xxx (이전 형식)
-    // 예: https://blog.naver.com/blogId/logNo (새로운 형식)
-    const blogPattern = /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/PostView\.naver\?blogId=[^&]+&logNo=\d+|[^/]+\/\d+)$/;
-    return blogPattern.test(url) && !/PostWriteForm\.naver/.test(url);
+    // 네이버 블로그 도메인 + /숫자(글번호)로 끝나거나, PostView.naver가 포함된 주소
+    return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/[^/]+(\/\d+|\/PostView\.naver)/.test(url);
 }
 
 
@@ -335,7 +334,6 @@ app.get('/image/:id/detail', (req, res) => {
             blogCreated,
             views,         // ✅ 서버 내 카운트된 조회수 기준
             todayVisits,   // 오늘 총 방문 수
-            unique,        // 고유 접속자 수
             ips,
             referers: img.referers || []
         });
@@ -344,8 +342,6 @@ app.get('/image/:id/detail', (req, res) => {
         res.status(500).json({ error: '상세 정보 조회 중 오류가 발생했습니다.' });
     }
 });
-
-
 
 
 
@@ -426,6 +422,8 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
+
+
 // 대시보드 페이지 (기존 경로도 유지)
 app.get('/dashboard.html', (req, res) => {
     if (!req.session.user) {
@@ -446,6 +444,8 @@ app.get('/users', (req, res) => {
         res.status(500).json({ error: '사용자 목록 조회 중 오류가 발생했습니다.' });
     }
 });
+
+
 
 // 사용자 등록 라우트
 app.post('/register', (req, res) => {
@@ -503,6 +503,8 @@ app.delete('/users/:id', (req, res) => {
     }
 });
 
+
+
 app.delete('/image/:id', (req, res) => {
     try {
         const id = req.params.id;
@@ -541,10 +543,14 @@ app.delete('/image/:id', (req, res) => {
     }
 });
 
+
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Uploads directory: ${uploadsDir}`);
 });
+
+
 
 // 에러 핸들링 미들웨어 (모든 라우트 정의 이후에 위치)
 app.use((err, req, res, next) => {
