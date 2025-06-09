@@ -115,7 +115,16 @@ function isRealBlogPost(url) {
 
 function isNaverBlogReferer(url) {
   if (!url) return false;
-  return /^https?:\/\/(blog|m\.blog)\.naver\.com\//.test(url);
+  // 네이버 블로그 도메인에서 온 요청
+  if (!/^https?:\/\/(blog|m\.blog)\.naver\.com\//.test(url)) return false;
+  // 글쓰기/작성폼/홈/관리 등은 제외
+  if (
+    /PostWriteForm\.naver/.test(url) || // 글쓰기 폼
+    /\/home([/?#]|$)/.test(url) ||      // 홈
+    /\/section([/?#]|$)/.test(url) ||   // 섹션
+    /\/dashboard([/?#]|$)/.test(url)    // 대시보드/관리
+  ) return false;
+  return true;
 }
 function isMySiteReferer(url) {
   if (!url) return false;
