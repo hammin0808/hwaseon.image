@@ -737,9 +737,12 @@ img {
 }
 
 .dashboard-copy-btn {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 65px;
   height: 30px;
-  
   padding: 0;
   background: linear-gradient(90deg, #2563eb 0%, #1877f2 100%);
   color: #fff;
@@ -750,9 +753,6 @@ img {
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
   box-shadow: 0 1px 3px rgba(24,119,242,0.10);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   margin: 0;
   vertical-align: middle;
   letter-spacing: 0.01em;

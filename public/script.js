@@ -208,7 +208,7 @@ if (document.getElementById('dashboard-tbody')) {
               <td style="padding:10px 8px;min-width:54px;max-width:54px;"><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"></td>
               <td style="padding:10px 8px;min-width:220px;max-width:260px;">
                 <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
-                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}" style="display:inline-block;max-width:180px;overflow-x:auto;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
+                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}" style="display:inline-block;max-width:180px;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
               </td>
               <td style="padding:10px 8px;min-width:120px;max-width:180px;">${mainReferer}</td>
               <td style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:260px;">${img.memo || '-'}</td>
@@ -638,7 +638,9 @@ if (document.getElementById('registerUserBtn')) {
   };
 }
 
-document.getElementById('excelDownload').addEventListener('click', async () => {
+const excelBtn = document.getElementById('excelDownload');
+if (excelBtn) {
+  excelBtn.addEventListener('click', async () => {
     try {
         const response = await fetch('/dashboard-excel');
         if (!response.ok) {
@@ -649,7 +651,7 @@ document.getElementById('excelDownload').addEventListener('click', async () => {
         const a = document.createElement('a');
         a.href = url;
         // 로그인한 아이디 가져오기
-        const userInfo = document.getElementById('userInfo').textContent.trim();
+        const userInfo = document.getElementById('userInfo') ? document.getElementById('userInfo').textContent.trim() : '';
         const fileName = userInfo ? `${userInfo}_dashboard.xlsx` : 'dashboard_data.xlsx';
         a.download = fileName;
         document.body.appendChild(a);
@@ -660,7 +662,8 @@ document.getElementById('excelDownload').addEventListener('click', async () => {
         console.error('엑셀 다운로드 오류:', error);
         alert('엑셀 다운로드 중 오류가 발생했습니다.');
     }
-});
+  });
+}
 
 // 엑셀 파일에서 메모 추출
 let excelMemos = [];
