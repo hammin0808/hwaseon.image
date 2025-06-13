@@ -568,27 +568,35 @@ app.get('/dashboard-excel', async (req, res) => {
         const filteredImages = req.session.user.role === 'admin'
             ? images
             : images.filter(img => img.owner === req.session.user.id);
-        const csvData = filteredImages.map(img => {
-            // 대시보드와 동일하게 실제 블로그 글 주소만 추출
+        // 워크북 생성
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Dashboard');
+        worksheet.columns = [
+            { header: '이미지 링크', key: 'image', width: 40 },
+            { header: '블로그 URL', key: 'blog', width: 40 },
+            { header: '메모', key: 'memo', width: 30 },
+            { header: '총 방문수', key: 'views', width: 12 }
+        ];
+        filteredImages.forEach(img => {
+            // 실제 블로그 글 주소만 추출
             let blogUrl = '-';
             if (img.referers && img.referers.length > 0) {
                 const real = img.referers.find(r => isRealBlogPost(r.referer));
                 blogUrl = real ? real.referer : '-';
             }
-            return [
-                `https://hwaseon-image.com/image/${img.id}`,
-                blogUrl,
-                img.memo || '',
-                img.views || 0
-            ].join(',');
+            worksheet.addRow({
+                image: `https://hwaseon-image.com/image/${img.id}`,
+                blog: blogUrl,
+                memo: img.memo || '',
+                views: img.views || 0
+            });
         });
-        const csvContent = [
-            ['이미지 링크', '블로그 URL', '메모', '총 방문수'].join(','),
-            ...csvData
-        ].join('\n');
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.csv');
-        res.send(csvContent);
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.xlsx');
+        await workbook.xlsx.write(res);
+        res.end();
     } catch (error) {
         console.error('Excel download error:', error);
         res.status(500).json({ error: '엑셀 다운로드 중 오류가 발생했습니다.' });
