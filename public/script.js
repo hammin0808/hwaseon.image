@@ -191,7 +191,7 @@ if (document.getElementById('dashboard-tbody')) {
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
-              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' style='display:inline-block;max-width:180px;white-space:nowrap;text-overflow:ellipsis;'>${realReferers[0].referer}</a>`;
+              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' style="display:inline-block;max-width:180px;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;'>${realReferers[0].referer}</a>`;
             }
           }
           // 소유자 표시: admin만 초록색, 나머지는 기본
@@ -688,27 +688,29 @@ if (memoExcelInput) {
 
 // 업로드 버튼 클릭 시 이미지와 메모 매칭
 const uploadBtn = document.getElementById('uploadBtn');
-uploadBtn.addEventListener('click', async (e) => {
-  e.preventDefault();
-  const imageInput = document.getElementById('imageInput');
-  const files = imageInput.files;
-  if (!files || !files.length) {
-    alert('이미지를 선택하세요.');
-    return;
-  }
-  if (excelMemos.length !== files.length) {
-    alert('엑셀의 메모 개수와 이미지 개수가 다릅니다.');
-    return;
-  }
-  for (let i = 0; i < files.length; i++) {
-    const formData = new FormData();
-    formData.append('image', files[i]);
-    formData.append('memo', excelMemos[i]);
-    await fetch('/upload', {
-      method: 'POST',
-      body: formData
-    });
-  }
-  alert('업로드 완료!');
-  window.location.reload();
-}); 
+if (uploadBtn) {
+  uploadBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const imageInput = document.getElementById('imageInput');
+    const files = imageInput.files;
+    if (!files || !files.length) {
+      alert('이미지를 선택하세요.');
+      return;
+    }
+    if (excelMemos.length !== files.length) {
+      alert('엑셀의 메모 개수와 이미지 개수가 다릅니다.');
+      return;
+    }
+    for (let i = 0; i < files.length; i++) {
+      const formData = new FormData();
+      formData.append('image', files[i]);
+      formData.append('memo', excelMemos[i]);
+      await fetch('/upload', {
+        method: 'POST',
+        body: formData
+      });
+    }
+    alert('업로드 완료!');
+    window.location.reload();
+  });
+} 
