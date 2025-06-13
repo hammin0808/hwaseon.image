@@ -208,7 +208,7 @@ if (document.getElementById('dashboard-tbody')) {
               <td style="padding:10px 8px;min-width:54px;max-width:54px;"><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"></td>
               <td style="padding:10px 8px;min-width:220px;max-width:260px;">
                 <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
-                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" style="display:inline-block;max-width:180px;overflow-x:auto;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
+                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}" style="display:inline-block;max-width:180px;overflow-x:auto;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
               </td>
               <td style="padding:10px 8px;min-width:120px;max-width:180px;">${mainReferer}</td>
               <td style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:260px;">${img.memo || '-'}</td>
@@ -356,12 +356,11 @@ if (document.getElementById('dashboard-tbody')) {
                   // detail 객체는 현재 모달에 표시된 데이터와 동일
                   // 블로그 시트
                   const blogSheet = [
-                    ['블로그 링크', '총 방문수', '오늘 총 방문수', '생성일자'],
+                    ['블로그 링크', '총 방문수', '오늘 총 방문수'],
                     [
                       detail.blogUrl || '-',
                       detail.views || 0,
-                      detail.todayVisits || 0,
-                      detail.blogCreated ? formatDate(detail.blogCreated) : '-'
+                      detail.todayVisits || 0
                     ]
                   ];
                   // 유저 시트
@@ -384,8 +383,7 @@ if (document.getElementById('dashboard-tbody')) {
                   wsBlog['!cols'] = [
                     { wch: 60 }, // 블로그 링크
                     { wch: 12 }, // 총 방문수
-                    { wch: 14 }, // 오늘 총 방문수
-                    { wch: 22 }  // 생성일자
+                    { wch: 14 }  // 오늘 총 방문수
                   ];
                   wsUser['!cols'] = [
                     { wch: 60 }, // 블로그 링크
@@ -395,7 +393,9 @@ if (document.getElementById('dashboard-tbody')) {
                   ];
                   XLSX.utils.book_append_sheet(wb, wsBlog, '블로그');
                   XLSX.utils.book_append_sheet(wb, wsUser, 'User');
-                  XLSX.writeFile(wb, 'blog_image_stats.xlsx');
+                  // 파일명을 메모로 지정 (메모가 없으면 기본값 사용)
+                  const fileName = detail.memo ? detail.memo.replace(/[<>:"/\\|?*]/g, '_') : 'blog_image_stats';
+                  XLSX.writeFile(wb, `${fileName}.xlsx`);
                 };
               });
           };
@@ -648,7 +648,10 @@ document.getElementById('excelDownload').addEventListener('click', async () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'dashboard_data.csv';
+        // 로그인한 아이디 가져오기
+        const userInfo = document.getElementById('userInfo').textContent.trim();
+        const fileName = userInfo ? `${userInfo}_dashboard.xlsx` : 'dashboard_data.xlsx';
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -657,4 +660,49 @@ document.getElementById('excelDownload').addEventListener('click', async () => {
         console.error('엑셀 다운로드 오류:', error);
         alert('엑셀 다운로드 중 오류가 발생했습니다.');
     }
+});
+
+// 엑셀 파일에서 메모 추출
+let excelMemos = [];
+document.getElementById('memoExcel').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const data = new Uint8Array(evt.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    // 첫 행이 '메모'일 경우 헤더로 간주하고 제외
+    if (rows.length && rows[0][0] && rows[0][0].toString().includes('메모')) rows.shift();
+    excelMemos = rows.map(r => r[0] ? r[0].toString() : '');
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// 업로드 버튼 클릭 시 이미지와 메모 매칭
+const uploadBtn = document.getElementById('uploadBtn');
+uploadBtn.addEventListener('click', async (e) => {
+  e.preventDefault();
+  const imageInput = document.getElementById('imageInput');
+  const files = imageInput.files;
+  if (!files || !files.length) {
+    alert('이미지를 선택하세요.');
+    return;
+  }
+  if (excelMemos.length !== files.length) {
+    alert('엑셀의 메모 개수와 이미지 개수가 다릅니다.');
+    return;
+  }
+  for (let i = 0; i < files.length; i++) {
+    const formData = new FormData();
+    formData.append('image', files[i]);
+    formData.append('memo', excelMemos[i]);
+    await fetch('/upload', {
+      method: 'POST',
+      body: formData
+    });
+  }
+  alert('업로드 완료!');
+  window.location.reload();
 }); 

@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = '/data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
-const MAX_DAILY_TRAFFIC = 3000;
+const MAX_DAILY_TRAFFIC = 1500;
 
 // 정적 파일 제공
 app.use(express.static('public'));
@@ -235,7 +235,7 @@ app.get('/image/:id', async (req, res) => {
         img.todayCount = 0;
     }
     if ((img.todayCount || 0) >= MAX_DAILY_TRAFFIC) {
-        return res.status(429).json({ error: '하루 트래픽(3,000회) 초과' });
+        return res.status(429).json({ error: '하루 트래픽(1,500회) 초과' });
     }
     img.todayCount = (img.todayCount || 0) + 1;
 
@@ -565,10 +565,13 @@ app.get('/dashboard-excel', async (req, res) => {
         if (!req.session.user) {
             return res.status(401).json({ error: 'Not authenticated' });
         }
+
+        // 관리자: 전체, 일반 사용자: 본인만
         const filteredImages = req.session.user.role === 'admin'
             ? images
             : images.filter(img => img.owner === req.session.user.id);
 
+        // 워크북 생성
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Dashboard');
 
@@ -593,8 +596,15 @@ app.get('/dashboard-excel', async (req, res) => {
             });
         });
 
+        // 헤더 스타일 설정
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // 응답 헤더 설정
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.xlsx');
+
+        // 파일 스트림으로 전송
         await workbook.xlsx.write(res);
         res.end();
     } catch (error) {

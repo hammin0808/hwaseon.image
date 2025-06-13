@@ -5,10 +5,29 @@ const resultDiv = document.getElementById('multiMemoResult');
 const previewDiv = document.getElementById('multiMemoPreview');
 const fileInput = document.getElementById('multiMemoImage');
 
-fileInput.onchange = function(e) {
+// 엑셀 파일에서 메모 추출
+let excelMemos = [];
+document.getElementById('multiMemoExcel').addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if (file) {
-    previewDiv.innerHTML = file.name;
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const data = new Uint8Array(evt.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    // 첫 행이 '메모'일 경우 헤더로 간주하고 제외
+    if (rows.length && rows[0][0] && rows[0][0].toString().includes('메모')) rows.shift();
+    excelMemos = rows.map(r => r[0] ? r[0].toString() : '');
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// 이미지 미리보기 (파일명만)
+fileInput.onchange = function(e) {
+  const files = Array.from(e.target.files);
+  if (files.length) {
+    previewDiv.innerHTML = files.map(f => f.name).join('<br>');
     previewDiv.style.display = '';
   } else {
     previewDiv.innerHTML = '';
@@ -33,37 +52,27 @@ addMemoBtn.onclick = function() {
   };
 };
 
+// 업로드
 form.onsubmit = async function(e) {
   e.preventDefault();
-  const formData = new FormData();
-  const fileInput = document.getElementById('multiMemoImage');
-  const file = fileInput.files[0];
-  if (!file) return alert('이미지를 선택하세요.');
-  formData.append('image', file);
-  const memos = Array.from(memoList.querySelectorAll('input[name="memo"]')).map(i => i.value.trim()).filter(Boolean);
-  if (memos.length === 0) return alert('메모를 1개 이상 입력하세요.');
-  memos.forEach(m => formData.append('memo[]', m));
-  const res = await fetch('/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  resultDiv.innerHTML = data.urls.map((url, idx) =>
-    `<div style='margin-bottom:12px;'>
-      <div class='multi-memo-url'><a href='${url}' target='_blank'>${url}</a></div>
-      <div style='color:#888;font-size:0.98em;'>메모: ${data.memos[idx]}</div>
-      <button class='multi-memo-btn' type='button' data-url='${url}' style='padding:4px 12px;font-size:0.95em;margin-top:4px;'>복사</button>
-    </div>`
-  ).join('');
-  // 복사 버튼 이벤트
-  resultDiv.querySelectorAll('button[data-url]').forEach(btn => {
-    btn.onclick = function() {
-      const url = this.getAttribute('data-url');
-      navigator.clipboard.writeText(url).then(() => {
-        this.innerHTML = '✅';
-        setTimeout(() => { this.innerHTML = '복사'; }, 1200);
-      });
-    };
-  });
-  // 입력란 초기화
-  fileInput.value = '';
-  while (memoList.children.length > 1) memoList.lastChild.remove();
-  memoList.querySelector('input[name="memo"]').value = '';
+  const files = fileInput.files;
+  if (!files || !files.length) {
+    alert('이미지를 선택하세요.');
+    return;
+  }
+  if (excelMemos.length !== files.length) {
+    alert('엑셀의 메모 개수와 이미지 개수가 다릅니다.');
+    return;
+  }
+  for (let i = 0; i < files.length; i++) {
+    const formData = new FormData();
+    formData.append('image', files[i]);
+    formData.append('memo', excelMemos[i]);
+    await fetch('/upload', {
+      method: 'POST',
+      body: formData
+    });
+  }
+  alert('업로드 완료!');
+  window.location.reload();
 }; 

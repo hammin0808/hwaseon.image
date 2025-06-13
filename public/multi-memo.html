@@ -16,6 +16,34 @@
     .multi-memo-url { color: #1877f2; font-weight: 500; word-break: break-all; }
     .multi-memo-input-group input[type="text"] { font-size: 1.08rem; padding: 13px 14px; border-radius: 8px; border: 1.5px solid #e3e8f0; width: 100%; }
     .multi-memo-input-group { width: 100%; }
+    .custom-file-upload.excel-upload {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 2px dashed #19c37d;
+      border-radius: 10px;
+      padding: 16px 18px;
+      background: #f8fffa;
+      color: #19c37d;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: 18px;
+      transition: border 0.2s, background 0.2s;
+    }
+    .custom-file-upload.excel-upload:hover {
+      border-color: #1877f2;
+      background: #eaf4ff;
+      color: #1877f2;
+    }
+    .custom-file-upload.excel-upload input[type="file"] {
+      display: none;
+    }
+    .custom-file-upload.excel-upload .upload-icon {
+      font-size: 1.6em;
+    }
+    .custom-file-upload.excel-upload .upload-text {
+      font-size: 1.08em;
+    }
   </style>
 </head>
 <body style="background:#f4f6fa;">
@@ -28,21 +56,21 @@
       </div>
     </div>
     <form id="multiMemoForm">
+      
       <label class="multi-memo-label">이미지 선택</label>
       <label class="custom-file-upload" style="margin-bottom:18px;">
-        <input type="file" name="image" id="multiMemoImage" required accept="image/*">
+        <input type="file" name="image" id="multiMemoImage" required accept="image/*" multiple>
         <span class="upload-icon">📁</span>
         <span class="upload-text">이미지를 선택하세요.</span>
       </label>
+      <label class="multi-memo-label">엑셀 파일 업로드</label>
+      <label class="custom-file-upload excel-upload">
+        <input type="file" id="multiMemoExcel" accept=".xlsx,.csv" class="form-control">
+        <span class="upload-icon">📄</span>
+        <span class="upload-text">엑셀 파일을 선택하세요.</span>
+      </label>
       <div id="multiMemoPreview" class="upload-preview" style="display:none;"></div>
-      <label class="multi-memo-label">메모 입력</label>
-      <div id="multiMemoList">
-        <div class="input-group multi-memo-input-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-          <input type="text" name="memo" placeholder="메모 입력" required style="flex:1;">
-        </div>
-      </div>
       <div style="display:flex;gap:10px;margin-bottom:0;margin-top:8px;">
-        <button type="button" id="addMultiMemoBtn" class="multi-memo-btn" style="flex:1;min-width:0;">메모 추가</button>
         <button type="submit" class="multi-memo-btn" style="flex:1;min-width:0;background:#19c37d;">업로드</button>
       </div>
     </form>
