@@ -191,7 +191,7 @@ if (document.getElementById('dashboard-tbody')) {
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
-              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' style='display:inline-block;max-width:180px;white-space:nowrap;text-overflow:ellipsis;'>${realReferers[0].referer}</a>`;
+              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' title='${realReferers[0].referer}' style='display:inline-block;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;'>${realReferers[0].referer}</a>`;
             }
           }
           // 소유자 표시: admin만 초록색, 나머지는 기본
