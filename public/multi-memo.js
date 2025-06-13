@@ -23,17 +23,18 @@ document.getElementById('multiMemoExcel').addEventListener('change', async (e) =
   reader.readAsArrayBuffer(file);
 });
 
-// 이미지 미리보기 (파일명만)
-fileInput.onchange = function(e) {
-  const files = Array.from(e.target.files);
-  if (files.length) {
-    previewDiv.innerHTML = files.map(f => f.name).join('<br>');
-    previewDiv.style.display = '';
-  } else {
-    previewDiv.innerHTML = '';
-    previewDiv.style.display = 'none';
-  }
-};
+if (fileInput) {
+  fileInput.onchange = function(e) {
+    const files = Array.from(e.target.files);
+    if (files.length) {
+      previewDiv.innerHTML = files.map(f => f.name).join('<br>');
+      previewDiv.style.display = '';
+    } else {
+      previewDiv.innerHTML = '';
+      previewDiv.style.display = 'none';
+    }
+  };
+}
 
 addMemoBtn.onclick = function() {
   const count = memoList.querySelectorAll('input[name="memo"]').length;
