@@ -191,7 +191,7 @@ if (document.getElementById('dashboard-tbody')) {
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
-              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' title='${realReferers[0].referer}' style='display:inline-block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;'>${realReferers[0].referer}</a>`;
+              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' title='${realReferers[0].referer}' style='display:inline-block;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;'>${realReferers[0].referer}</a>`;
             }
           }
           // 소유자 표시: admin만 초록색, 나머지는 기본
@@ -210,8 +210,8 @@ if (document.getElementById('dashboard-tbody')) {
                 <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
                 <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}" style="display:inline-block;max-width:180px;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
               </td>
-              <td style="padding:10px 8px;min-width:120px;max-width:180px;">${mainReferer}</td>
-              <td style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:260px;">${img.memo || '-'}</td>
+              <td style="padding:10px 8px;min-width:120px;max-width:220px;">${mainReferer}</td>
+              <td style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:240px;">${img.memo || '-'}</td>
               <td style="padding:10px 8px;min-width:80px;max-width:120px;text-align:center;">${ownerCell}</td>
               <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
               <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
