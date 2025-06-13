@@ -191,7 +191,7 @@ if (document.getElementById('dashboard-tbody')) {
           if (img.referers && img.referers.length > 0) {
             const realReferers = img.referers.filter(ref => isRealBlogPost(ref.referer));
             if (realReferers.length > 0) {
-              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' style='display:inline-block;max-width:180px;overflow-x:auto;white-space:nowrap;text-overflow:ellipsis;'>${realReferers[0].referer}</a>`;
+              mainReferer = `<a href='${realReferers[0].referer}' target='_blank' class='dashboard-blog-link' style='display:inline-block;max-width:180px;white-space:nowrap;text-overflow:ellipsis;'>${realReferers[0].referer}</a>`;
             }
           }
           // 소유자 표시: admin만 초록색, 나머지는 기본
@@ -667,21 +667,24 @@ if (excelBtn) {
 
 // 엑셀 파일에서 메모 추출
 let excelMemos = [];
-document.getElementById('memoExcel').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    const data = new Uint8Array(evt.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    // 첫 행이 '메모'일 경우 헤더로 간주하고 제외
-    if (rows.length && rows[0][0] && rows[0][0].toString().includes('메모')) rows.shift();
-    excelMemos = rows.map(r => r[0] ? r[0].toString() : '');
-  };
-  reader.readAsArrayBuffer(file);
-});
+const memoExcelInput = document.getElementById('memoExcel');
+if (memoExcelInput) {
+  memoExcelInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      // 첫 행이 '메모'일 경우 헤더로 간주하고 제외
+      if (rows.length && rows[0][0] && rows[0][0].toString().includes('메모')) rows.shift();
+      excelMemos = rows.map(r => r[0] ? r[0].toString() : '');
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 // 업로드 버튼 클릭 시 이미지와 메모 매칭
 const uploadBtn = document.getElementById('uploadBtn');
