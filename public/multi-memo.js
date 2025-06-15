@@ -77,16 +77,87 @@ if (form) {
       alert('엑셀 파일에서 메모를 추출하지 못했습니다.');
       return;
     }
+
+    const resultDiv = document.getElementById('multiMemoResult');
+    resultDiv.innerHTML = '<div style="text-align:center;color:#666;margin:20px 0;">업로드 중...</div>';
+    resultDiv.style.display = 'block';
+
+    const results = [];
     for (let i = 0; i < excelMemos.length; i++) {
       const formData = new FormData();
       formData.append('image', files[0]); // 이미지 1개만
       formData.append('memo', excelMemos[i]);
-      await fetch('/upload', {
-        method: 'POST',
-        body: formData
-      });
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+        results.push({
+          url: data.url || (data.urls && data.urls[0]),
+          memo: data.memo || (data.memos && data.memos[0])
+        });
+      } catch (error) {
+        console.error('Upload error:', error);
+        results.push({ error: '업로드 실패' });
+      }
     }
-    alert('업로드 완료!');
-    window.location.reload();
+
+    // 결과 표시
+    const previewUrl = URL.createObjectURL(files[0]);
+    let html = `
+      <div class="result-box" style="display:flex;flex-direction:column;align-items:center;gap:20px;margin-top:20px;">
+        <div style='width:100%;text-align:center;'>
+          <img src="${previewUrl}" class="result-img" alt="업로드 이미지" style="max-width:300px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+        </div>
+        <div class="result-list" style="width:100%;display:flex;flex-direction:column;gap:12px;">
+    `;
+
+    results.forEach((result, index) => {
+      if (result.error) {
+        html += `<div style="color:#dc3545;padding:10px;background:#fff3f3;border-radius:8px;">${index + 1}번째 업로드 실패</div>`;
+      } else {
+        const urlText = result.url ? `${location.origin}${result.url}` : '';
+        html += `
+          <div class="result-item" style="background:#f8f9fa;padding:12px;border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span style="color:#1877f2;font-weight:bold;">URL ${index + 1}:</span>
+              <a href="${result.url}" target="_blank" style="color:#3575e1;text-decoration:none;">${urlText}</a>
+              <button class='copy-btn' type='button' style="background:#1877f2;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.9em;">복사</button>
+            </div>
+            <div style="color:#666;font-size:0.95em;">
+              <span style="color:#1877f2;font-weight:bold;">메모:</span> ${result.memo || ''}
+            </div>
+          </div>
+        `;
+      }
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    resultDiv.innerHTML = html;
+
+    // 복사 버튼 이벤트
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.onclick = function() {
+        const url = this.parentNode.querySelector('a').href;
+        navigator.clipboard.writeText(url).then(() => {
+          this.innerHTML = '✅';
+          setTimeout(() => { this.innerHTML = '복사'; }, 1200);
+        });
+      };
+    });
+
+    // 이미지 클릭시 미리보기
+    const thumb = resultDiv.querySelector('.result-img');
+    thumb.onclick = function() {
+      const modal = document.getElementById('img-modal');
+      const modalImg = document.getElementById('img-modal-img');
+      modalImg.src = previewUrl;
+      modal.style.display = 'flex';
+    };
   };
 } 
