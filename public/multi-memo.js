@@ -4,14 +4,20 @@ const addMemoBtn = document.getElementById('addMultiMemoBtn');
 const resultDiv = document.getElementById('multiMemoResult');
 const previewDiv = document.getElementById('multiMemoPreview');
 const fileInput = document.getElementById('multiMemoImage');
+const excelInput = document.getElementById('multiMemoExcel');
+const excelNameDiv = document.getElementById('multiMemoExcelName');
 
 // 엑셀 파일에서 메모 추출
 let excelMemos = [];
-const excelInput = document.getElementById('multiMemoExcel');
 if (excelInput) {
   excelInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    // 파일명 표시
+    if (excelNameDiv) {
+      excelNameDiv.innerHTML = file.name;
+      excelNameDiv.style.display = '';
+    }
     const reader = new FileReader();
     reader.onload = function(evt) {
       const data = new Uint8Array(evt.target.result);
@@ -63,17 +69,17 @@ if (form) {
   form.onsubmit = async function(e) {
     e.preventDefault();
     const files = fileInput.files;
-    if (!files || !files.length) {
-      alert('이미지를 선택하세요.');
+    if (!files || files.length !== 1) {
+      alert('이미지는 1개만 선택하세요.');
       return;
     }
-    if (excelMemos.length !== files.length) {
-      alert('엑셀의 메모 개수와 이미지 개수가 다릅니다.');
+    if (!excelMemos.length) {
+      alert('엑셀 파일에서 메모를 추출하지 못했습니다.');
       return;
     }
-    for (let i = 0; i < files.length; i++) {
+    for (let i = 0; i < excelMemos.length; i++) {
       const formData = new FormData();
-      formData.append('image', files[i]);
+      formData.append('image', files[0]); // 이미지 1개만
       formData.append('memo', excelMemos[i]);
       await fetch('/upload', {
         method: 'POST',
