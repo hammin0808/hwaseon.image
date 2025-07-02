@@ -604,7 +604,7 @@ app.get('/dashboard-excel', async (req, res) => {
                 });
             });
         });
-        const allDates = Array.from(allDatesSet).sort(); // 오름차순
+        const allDates = Array.from(allDatesSet).sort((a, b) => b.localeCompare(a)); // 내림차순(최신이 앞으로)
         // 2. 워크북/시트 생성
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Dashboard');
