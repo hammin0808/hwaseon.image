@@ -359,7 +359,34 @@ app.get('/image/:id/detail', (req, res) => {
     }
 });
 
-
+// 이미지별 일자별 방문수 집계 API
+app.get('/image/:id/daily-visits', (req, res) => {
+    try {
+        const img = images.find(i => i.id === req.params.id);
+        if (!img) {
+            return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
+        }
+        // 날짜별 방문수 집계
+        const dailyMap = {};
+        (img.ips || []).forEach(ipinfo => {
+            (ipinfo.visits || []).forEach(v => {
+                const date = v.time.slice(0, 10); // YYYY-MM-DD
+                dailyMap[date] = (dailyMap[date] || 0) + 1;
+            });
+        });
+        // 날짜 오름차순 정렬
+        const dailyVisits = Object.entries(dailyMap)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+        res.json({
+            id: img.id,
+            dailyVisits
+        });
+    } catch (error) {
+        console.error('일자별 방문수 조회 오류:', error);
+        res.status(500).json({ error: '일자별 방문수 조회 중 오류가 발생했습니다.' });
+    }
+});
 
 // 로그인 페이지 라우트
 app.get('/login', (req, res) => {

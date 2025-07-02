@@ -302,31 +302,63 @@ if (document.getElementById('dashboard-tbody')) {
                 `;
                 // 접속 기록 표
                 let ipTable = '';
-                if (detail.ips && detail.ips.length > 0) {
-                  ipTable = `
+                let dailyVisitsTable = '';
+                const makeIpTable = () => {
+                  if (detail.ips && detail.ips.length > 0) {
+                    return `
+                      <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
+                        <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px;">
+                          접속 로그
+                          <button id="show-daily-visits-btn" style="margin-left:8px;padding:4px 14px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">방문일자</button>
+                        </div>
+                        <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
+                          <thead>
+                            <tr style="background:#f4f6fa;">
+                              <th style="padding:8px 0;">IP</th>
+                              <th style="padding:8px 0;">User-Agent</th>
+                              <th style="padding:8px 0;">방문수</th>
+                            </tr>
+                          </thead>
+                          <tbody>` +
+                        detail.ips.map(ipinfo => {
+                          const ipv4 = (ipinfo.ip || '').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+                          return `<tr>
+                            <td style="padding:7px 0;">${ipv4 ? ipv4[0] : ipinfo.ip}</td>
+                            <td style="padding:7px 0;word-break:break-all;text-align:left;">${ipinfo.ua || '-'}</td>
+                            <td style="padding:7px 0;">${ipinfo.count}</td>
+                          </tr>`;
+                        }).join('') +
+                        `</tbody></table></div>`;
+                  } else {
+                    return '<div style="background:#f8faff;border-radius:12px;padding:18px 32px;text-align:center;color:#888;">접속 기록 없음</div>';
+                  }
+                };
+                const makeDailyVisitsTable = (dailyVisits) => {
+                  if (!dailyVisits || !dailyVisits.length) {
+                    return '<div style="background:#f8faff;border-radius:12px;padding:18px 32px;text-align:center;color:#888;">일자별 방문 기록 없음</div>';
+                  }
+                  return `
                     <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
-                      <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;">접속 로그</div>
+                      <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px;">
+                        방문일자
+                        <button id="show-ip-log-btn" style="margin-left:8px;padding:4px 14px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">접속 로그</button>
+                      </div>
                       <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                         <thead>
                           <tr style="background:#f4f6fa;">
-                            <th style="padding:8px 0;">IP</th>
-                            <th style="padding:8px 0;">User-Agent</th>
+                            <th style="padding:8px 0;">날짜</th>
                             <th style="padding:8px 0;">방문수</th>
                           </tr>
                         </thead>
-                        <tbody>` +
-                    detail.ips.map(ipinfo => {
-                      const ipv4 = (ipinfo.ip || '').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
-                      return `<tr>
-                        <td style="padding:7px 0;">${ipv4 ? ipv4[0] : ipinfo.ip}</td>
-                        <td style="padding:7px 0;word-break:break-all;text-align:left;">${ipinfo.ua || '-'}</td>
-                        <td style="padding:7px 0;">${ipinfo.count}</td>
-                      </tr>`;
-                    }).join('') +
-                    `</tbody></table></div>`;
-                } else {
-                  ipTable = '<div style="background:#f8faff;border-radius:12px;padding:18px 32px;text-align:center;color:#888;">접속 기록 없음</div>';
-                }
+                        <tbody>
+                          ${dailyVisits.map(row => `<tr><td style='padding:7px 0;'>${row.date}</td><td style='padding:7px 0;'>${row.count}</td></tr>`).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                  `;
+                };
+                ipTable = makeIpTable();
+                dailyVisitsTable = makeDailyVisitsTable(detail.dailyVisits);
                 // 파일명 + 엑셀 버튼 (상단 넉넉한 레이아웃)
                 const modalHeader = `
                   <div style="display:flex;justify-content:space-between;align-items:center;padding:0 24px 0 24px;margin-bottom:18px;">
@@ -334,20 +366,52 @@ if (document.getElementById('dashboard-tbody')) {
                     <button id="excel-download-btn" style="padding:7px 22px;font-size:1.05rem;background:#19c37d;color:#fff;border:none;border-radius:7px;cursor:pointer;margin-left:32px;">엑셀 다운로드</button>
                   </div>
                 `;
-                document.getElementById('modal-body').innerHTML =
-                  `<div style="padding:28px 28px 16px 28px;">
-                    ${modalHeader}
-                    <hr style="margin:12px 0;">
-                    ${statBlock}
-                    <hr style="margin:12px 0;">
-                    ${blogBlock}
-                    <hr style="margin:12px 0;">
-                    ${ipTable}
-                  </div>`;
+                // 모달 렌더링 함수(탭 전환 지원)
+                function renderModalBody(contentHtml) {
+                  document.getElementById('modal-body').innerHTML =
+                    `<div style="padding:28px 28px 16px 28px;">
+                      ${modalHeader}
+                      <hr style="margin:12px 0;">
+                      ${statBlock}
+                      <hr style="margin:12px 0;">
+                      ${blogBlock}
+                      <hr style="margin:12px 0;">
+                      ${contentHtml}
+                    </div>`;
+                }
+                renderModalBody(ipTable);
                 document.getElementById('modal').style.display = 'flex';
+                // 방문일자 버튼 이벤트
+                setTimeout(() => {
+                  const showDailyBtn = document.getElementById('show-daily-visits-btn');
+                  if (showDailyBtn) {
+                    showDailyBtn.onclick = function() {
+                      fetch(`/image/${detail.id}/daily-visits`)
+                        .then(res => res.json())
+                        .then(result => {
+                          dailyVisitsTable = makeDailyVisitsTable(result.dailyVisits);
+                          renderModalBody(dailyVisitsTable);
+                          // 접속 로그로 돌아가는 버튼 이벤트
+                          setTimeout(() => {
+                            const showIpBtn = document.getElementById('show-ip-log-btn');
+                            if (showIpBtn) {
+                              showIpBtn.onclick = function() {
+                                renderModalBody(ipTable);
+                                // 다시 방문일자 버튼 이벤트 연결
+                                setTimeout(() => {
+                                  const showDailyBtn2 = document.getElementById('show-daily-visits-btn');
+                                  if (showDailyBtn2) showDailyBtn2.onclick = this.onclick;
+                                }, 0);
+                              };
+                            }
+                          }, 0);
+                        });
+                    };
+                  }
+                }, 0);
 
                 // 엑셀 다운로드 기능(선택)
-                document.getElementById('excel-download-btn').onclick = function() {
+                document.getElementById('excel-download-btn').onclick = async function() {
                   // 엑셀 다운로드 구현
                   if (typeof XLSX === 'undefined') {
                     alert('엑셀 라이브러리가 로드되지 않았습니다.');
@@ -393,6 +457,25 @@ if (document.getElementById('dashboard-tbody')) {
                   ];
                   XLSX.utils.book_append_sheet(wb, wsBlog, '블로그');
                   XLSX.utils.book_append_sheet(wb, wsUser, 'User');
+                  // 일자별 방문수 시트 추가
+                  try {
+                    const res = await fetch(`/image/${detail.id}/daily-visits`);
+                    if (res.ok) {
+                      const { dailyVisits } = await res.json();
+                      const dailySheet = [
+                        ['날짜', '방문수'],
+                        ...(dailyVisits || []).map(row => [row.date, row.count])
+                      ];
+                      const wsDaily = XLSX.utils.aoa_to_sheet(dailySheet);
+                      wsDaily['!cols'] = [
+                        { wch: 16 }, // 날짜
+                        { wch: 10 }  // 방문수
+                      ];
+                      XLSX.utils.book_append_sheet(wb, wsDaily, '일자별 방문수');
+                    }
+                  } catch (e) {
+                    // 무시: 일자별 방문수 시트가 없어도 다운로드는 진행
+                  }
                   // 파일명을 메모로 지정 (메모가 없으면 기본값 사용)
                   const fileName = detail.memo ? detail.memo.replace(/[<>:"/\\|?*]/g, '_') : 'blog_image_stats';
                   XLSX.writeFile(wb, `${fileName}.xlsx`);
