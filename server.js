@@ -595,15 +595,29 @@ app.get('/dashboard-excel', async (req, res) => {
         const filteredImages = req.session.user.role === 'admin'
             ? images
             : images.filter(img => img.owner === req.session.user.id);
-        // 워크북 생성
+        // 1. 모든 날짜 수집
+        const allDatesSet = new Set();
+        filteredImages.forEach(img => {
+            (img.ips || []).forEach(ipinfo => {
+                (ipinfo.visits || []).forEach(v => {
+                    if (v.time) allDatesSet.add(v.time.slice(0, 10));
+                });
+            });
+        });
+        const allDates = Array.from(allDatesSet).sort(); // 오름차순
+        // 2. 워크북/시트 생성
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Dashboard');
-        worksheet.columns = [
+        // 3. 컬럼 정의
+        const baseColumns = [
             { header: '이미지 링크', key: 'image', width: 40 },
             { header: '블로그 URL', key: 'blog', width: 40 },
             { header: '메모', key: 'memo', width: 30 },
             { header: '총 방문수', key: 'views', width: 12 }
         ];
+        const dateColumns = allDates.map(date => ({ header: date, key: `date_${date}`, width: 12 }));
+        worksheet.columns = [...baseColumns, ...dateColumns];
+        // 4. 데이터 행 추가
         filteredImages.forEach(img => {
             // 실제 블로그 글 주소만 추출
             let blogUrl = '-';
@@ -611,12 +625,25 @@ app.get('/dashboard-excel', async (req, res) => {
                 const real = img.referers.find(r => isRealBlogPost(r.referer));
                 blogUrl = real ? real.referer : '-';
             }
-            worksheet.addRow({
+            // 날짜별 방문수 집계
+            const dailyMap = {};
+            (img.ips || []).forEach(ipinfo => {
+                (ipinfo.visits || []).forEach(v => {
+                    const date = v.time ? v.time.slice(0, 10) : null;
+                    if (date) dailyMap[date] = (dailyMap[date] || 0) + 1;
+                });
+            });
+            // 행 데이터
+            const row = {
                 image: `https://hwaseon-image.com/image/${img.id}`,
                 blog: blogUrl,
                 memo: img.memo || '',
                 views: img.views || 0
+            };
+            allDates.forEach(date => {
+                row[`date_${date}`] = dailyMap[date] || 0;
             });
+            worksheet.addRow(row);
         });
         worksheet.getRow(1).font = { bold: true };
         worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
