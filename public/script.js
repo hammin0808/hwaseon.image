@@ -309,7 +309,7 @@ if (document.getElementById('dashboard-tbody')) {
                       <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
                         <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px;">
                           접속 로그
-                          <button id="show-daily-visits-btn" style="margin-left:8px;padding:3px 8px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">방문일자</button>
+                          <button id="show-daily-visits-btn" style="margin-left:8px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">방문일자</button>
                         </div>
                         <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                           <thead>
@@ -339,9 +339,9 @@ if (document.getElementById('dashboard-tbody')) {
                   }
                   return `
                     <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
-                      <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px;">
-                        방문일자
-                        <button id="show-ip-log-btn" style="margin-left:8px;padding:3px 8px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">접속 로그</button>
+                      <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;">
+                        <span style="flex:1;">방문일자</span>
+                        <button id="show-ip-log-btn" style="margin-left:24px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">접속 로그</button>
                       </div>
                       <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                         <thead>
@@ -369,7 +369,7 @@ if (document.getElementById('dashboard-tbody')) {
                 // 모달 렌더링 함수(탭 전환 지원)
                 function renderModalBody(contentHtml) {
                   document.getElementById('modal-body').innerHTML =
-                    `<div style="padding:28px 28px 16px 28px; max-width:700px; margin:0 auto;">
+                    `<div style="padding:28px 28px 16px 28px; max-width:750px; margin:0 auto;">
                       ${modalHeader}
                       <hr style="margin:12px 0;">
                       ${statBlock}
@@ -412,29 +412,38 @@ if (document.getElementById('dashboard-tbody')) {
 
                 // 엑셀 다운로드 기능(선택)
                 document.getElementById('excel-download-btn').onclick = async function() {
-                  // 엑셀 다운로드 구현
                   if (typeof XLSX === 'undefined') {
                     alert('엑셀 라이브러리가 로드되지 않았습니다.');
                     return;
                   }
                   // detail 객체는 현재 모달에 표시된 데이터와 동일
-                  // 블로그 시트
-                  const blogSheet = [
-                    ['블로그 링크', '총 방문수', '오늘 총 방문수'],
-                    [
-                      detail.blogUrl || '-',
-                      detail.views || 0,
-                      detail.todayVisits || 0
-                    ]
+                  // 1. 날짜별 방문수 시트
+                  let dailyVisits = [];
+                  try {
+                    const res = await fetch(`/image/${detail.id}/daily-visits`);
+                    if (res.ok) {
+                      const result = await res.json();
+                      dailyVisits = result.dailyVisits || [];
+                    }
+                  } catch (e) {}
+                  const blogUrl = detail.blogUrl || '-';
+                  const totalViews = detail.views || 0;
+                  // 날짜별 방문수 시트: [블로그 링크, 총 방문수, 날짜, 방문수]
+                  const dailySheet = [
+                    ['블로그 링크', '총 방문수', '날짜', '방문수'],
+                    ...dailyVisits.map(row => [blogUrl, totalViews, row.date, row.count])
                   ];
-                  // 유저 시트
+                  // 2. 유저별 상세 시트
                   const userSheet = [
-                    ['블로그 링크', 'IP', 'User-Agent', '해당 유저 방문수', '방문 시각(시:분:초)']
+                    ['IP', 'User-Agent', '유저 방문수', '방문 시각(시:분:초)']
                   ];
                   (detail.ips || []).forEach(row => {
-                    const visitTimes = (row.visits || []).map(v => v.time ? v.time.replace('T', ' ').slice(0, 19) : '').join(', ');
+                    // 방문 시각을 \n(줄바꿈)으로 구분
+                    const visitTimes = (row.visits || [])
+                      .map(v => v.time ? v.time.replace('T', ' ').slice(0, 19) : '')
+                      .filter(Boolean)
+                      .join('\n');
                     userSheet.push([
-                      detail.blogUrl || '-',
                       row.ip,
                       row.ua,
                       row.count,
@@ -443,43 +452,25 @@ if (document.getElementById('dashboard-tbody')) {
                   });
                   // 워크북 생성
                   const wb = XLSX.utils.book_new();
-                  const wsBlog = XLSX.utils.aoa_to_sheet(blogSheet);
+                  const wsDaily = XLSX.utils.aoa_to_sheet(dailySheet);
                   const wsUser = XLSX.utils.aoa_to_sheet(userSheet);
-                  // 컬럼 너비 설정 (방문수만 좁게, 나머지는 넉넉히)
-                  wsBlog['!cols'] = [
+                  // 컬럼 너비 설정
+                  wsDaily['!cols'] = [
                     { wch: 60 }, // 블로그 링크
                     { wch: 12 }, // 총 방문수
-                    { wch: 14 }  // 오늘 총 방문수
+                    { wch: 14 }, // 날짜
+                    { wch: 10 }  // 방문수
                   ];
                   wsUser['!cols'] = [
-                    { wch: 60 }, // 블로그 링크
                     { wch: 18 }, // IP
                     { wch: 40 }, // User-Agent
-                    { wch: 10 },  // 방문수(좁게)
-                    { wch: 40 }  // 방문 시각(시:분:초)
+                    { wch: 10 }, // 유저 방문수
+                    { wch: 24 }  // 방문 시각(시:분:초)
                   ];
-                  XLSX.utils.book_append_sheet(wb, wsBlog, '블로그');
-                  XLSX.utils.book_append_sheet(wb, wsUser, 'User');
-                  // 일자별 방문수 시트 추가
-                  try {
-                    const res = await fetch(`/image/${detail.id}/daily-visits`);
-                    if (res.ok) {
-                      const { dailyVisits } = await res.json();
-                      const dailySheet = [
-                        ['날짜', '방문수'],
-                        ...(dailyVisits || []).map(row => [row.date, row.count])
-                      ];
-                      const wsDaily = XLSX.utils.aoa_to_sheet(dailySheet);
-                      wsDaily['!cols'] = [
-                        { wch: 16 }, // 날짜
-                        { wch: 10 }  // 방문수
-                      ];
-                      XLSX.utils.book_append_sheet(wb, wsDaily, '일자별 방문수');
-                    }
-                  } catch (e) {
-                    // 무시: 일자별 방문수 시트가 없어도 다운로드는 진행
-                  }
-                  // 파일명을 메모로 지정 (메모가 없으면 기본값 사용)
+                  XLSX.utils.book_append_sheet(wb, wsDaily, '날짜별 방문수');
+                  XLSX.utils.book_append_sheet(wb, wsUser, '유저별 상세');
+                  // 3번째 시트 없음
+                  // 파일명 지정
                   const fileName = detail.memo ? detail.memo.replace(/[<>:"/\\|?*]/g, '_') : 'blog_image_stats';
                   XLSX.writeFile(wb, `${fileName}.xlsx`);
                 };
