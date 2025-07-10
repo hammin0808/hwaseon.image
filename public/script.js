@@ -339,8 +339,8 @@ if (document.getElementById('dashboard-tbody')) {
                   return `
                     <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
                       <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;">
-                        <span style="flex-basis:50%;max-width:50%;flex-shrink:0;white-space:nowrap;">접속 로그</span>
-                        <button id="show-ip-log-btn" style="flex-basis:50%;max-width:50%;margin-left:0;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;display:block;width:100%;text-align:center;white-space:nowrap;">방문일자</button>
+                        <span style="flex-basis:50%;max-width:50%;flex-shrink:0;white-space:nowrap;"></span>
+                        <button id="show-ip-log-btn" style="flex-basis:50%;max-width:50%;margin-left:0;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;display:block;width:100%;text-align:center;white-space:nowrap;">접속로그</button>
                       </div>
                       <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                         <thead>
@@ -480,6 +480,12 @@ if (document.getElementById('dashboard-tbody')) {
                     // 날짜 내림차순 정렬 후 첫 번째(최신)
                     const sortedDates = dailyVisits.map(r => r.date).sort().reverse();
                     latestDate = sortedDates[0] || '';
+                  }
+                  let dateStr = '';
+                  if (latestDate) {
+                    // YY.MM.DD 형식으로 변환
+                    const d = latestDate.split('-');
+                    if (d.length === 3) dateStr = `${d[0].slice(2)}.${d[1]}.${d[2]}`;
                   }
                   let memoStr = detail.memo;
                   if (!memoStr) {
