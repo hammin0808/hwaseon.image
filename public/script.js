@@ -309,7 +309,7 @@ if (document.getElementById('dashboard-tbody')) {
                       <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
                         <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px;">
                           접속 로그
-                          <button id="show-daily-visits-btn" style="margin-left:8px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">방문일자</button>
+                          <button id="show-daily-visits-btn" style="margin-left:6px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">방문일자</button>
                         </div>
                         <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                           <thead>
@@ -340,8 +340,8 @@ if (document.getElementById('dashboard-tbody')) {
                   return `
                     <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
                       <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;">
-                        <span style="flex:1;">방문일자</span>
-                        <button id="show-ip-log-btn" style="margin-left:24px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">접속 로그</button>
+                        <span style="flex-basis:50%;max-width:50%;flex-shrink:0;">접속 로그</span>
+                        <button id="show-ip-log-btn" style="flex-basis:50%;max-width:50%;margin-left:0;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;display:block;width:100%;text-align:center;">방문일자</button>
                       </div>
                       <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                         <thead>
@@ -431,7 +431,12 @@ if (document.getElementById('dashboard-tbody')) {
                   // 날짜별 방문수 시트: [블로그 링크, 총 방문수, 날짜, 방문수]
                   const dailySheet = [
                     ['블로그 링크', '총 방문수', '날짜', '방문수'],
-                    ...dailyVisits.map(row => [blogUrl, totalViews, row.date, row.count])
+                    ...dailyVisits.map((row, idx) => [
+                      idx === 0 ? blogUrl : '',
+                      idx === 0 ? totalViews : '',
+                      row.date,
+                      row.count
+                    ])
                   ];
                   // 2. 유저별 상세 시트
                   const userSheet = [
@@ -471,7 +476,22 @@ if (document.getElementById('dashboard-tbody')) {
                   XLSX.utils.book_append_sheet(wb, wsUser, '유저별 상세');
                   // 3번째 시트 없음
                   // 파일명 지정
-                  const fileName = detail.memo ? detail.memo.replace(/[<>:"/\\|?*]/g, '_') : 'blog_image_stats';
+                  let latestDate = '';
+                  if (dailyVisits.length > 0) {
+                    // 날짜 내림차순 정렬 후 첫 번째(최신)
+                    const sortedDates = dailyVisits.map(r => r.date).sort().reverse();
+                    latestDate = sortedDates[0] || '';
+                  }
+                  let dateStr = '';
+                  if (latestDate) {
+                    // YY.MM.DD 형식으로 변환
+                    const d = latestDate.split('-');
+                    if (d.length === 3) dateStr = `${d[0].slice(2)}.${d[1]}.${d[2]}`;
+                  }
+                  let memoStr = detail.memo ? detail.memo.replace(/[<>:"/\\|?*]/g, '_') : '';
+                  let fileName = memoStr;
+                  if (dateStr) fileName += (memoStr ? '-' : '') + dateStr;
+                  if (!fileName) fileName = 'blog_image_stats';
                   XLSX.writeFile(wb, `${fileName}.xlsx`);
                 };
               });
