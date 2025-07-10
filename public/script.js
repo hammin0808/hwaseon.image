@@ -351,8 +351,8 @@ if (document.getElementById('dashboard-tbody')) {
                     </div>
                   `;
                 };
-                ipTable = makeIpTable(onTabSwitch);
-                dailyVisitsTable = makeDailyVisitsTable(detail.dailyVisits, onTabSwitch);
+                ipTable = makeIpTable(showDailyVisitsTable);
+                dailyVisitsTable = makeDailyVisitsTable(detail.dailyVisits, showIpTable);
                 // 파일명 + 엑셀 버튼 (상단 넉넉한 레이아웃)
                 const modalHeader = `
                   <div style="display:flex;justify-content:space-between;align-items:center;padding:0 24px 0 24px;margin-bottom:18px;">
@@ -383,7 +383,7 @@ if (document.getElementById('dashboard-tbody')) {
                       fetch(`/image/${detail.id}/daily-visits`)
                         .then(res => res.json())
                         .then(result => {
-                          dailyVisitsTable = makeDailyVisitsTable(result.dailyVisits, onTabSwitch);
+                          dailyVisitsTable = makeDailyVisitsTable(result.dailyVisits, showIpTable);
                           renderModalBody(dailyVisitsTable);
                           // 접속 로그로 돌아가는 버튼 이벤트
                           setTimeout(() => {
