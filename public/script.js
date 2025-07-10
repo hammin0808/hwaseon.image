@@ -211,7 +211,7 @@ if (document.getElementById('dashboard-tbody')) {
                 <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}" style="display:inline-block;max-width:180px;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
               </td>
               <td style="padding:10px 8px;min-width:120px;max-width:220px;">${mainReferer}</td>
-              <td style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:240px;">${img.memo || '-'}</td>
+              <td class="memo-td" style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:240px;">${img.memo || '-'}</td>
               <td style="padding:10px 8px;min-width:80px;max-width:120px;text-align:center;">${ownerCell}</td>
               <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
               <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
@@ -339,8 +339,7 @@ if (document.getElementById('dashboard-tbody')) {
                   return `
                     <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
                       <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;">
-                        <span style="flex-basis:50%;max-width:50%;flex-shrink:0;white-space:nowrap;"></span>
-                        <button id="show-ip-log-btn" style="flex-basis:50%;max-width:50%;margin-left:0;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;display:block;width:100%;text-align:center;white-space:nowrap;">접속로그</button>
+                        <button id="show-daily-visits-btn" style="margin-left:6px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">접속로그</button>
                       </div>
                       <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                         <thead>
@@ -490,7 +489,7 @@ if (document.getElementById('dashboard-tbody')) {
                   let memoStr = detail.memo;
                   if (!memoStr) {
                     // 모달 내 메모 셀에서 직접 가져오기 (클래스/ID에 따라 조정)
-                    const memoCell = document.querySelector('.result-memo, .dashboard-memo, .modal-memo');
+                    const memoCell = document.querySelector('.memo-td');
                     if (memoCell) memoStr = memoCell.innerText.trim();
                   }
                   memoStr = memoStr ? memoStr.replace(/[<>:"/\\|?*]/g, '_') : '미입력';
