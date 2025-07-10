@@ -308,7 +308,8 @@ if (document.getElementById('dashboard-tbody')) {
                     return `
                       <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
                         ${renderTabHeader('접속 로그', 'show-daily-visits-btn', '방문일자', onTabSwitch)}
-                        <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
+                        <table style="
+                          접속 로그width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                           <thead>
                             <tr style="background:#f4f6fa;">
                               <th style="padding:8px 0;">IP</th>
@@ -362,8 +363,10 @@ if (document.getElementById('dashboard-tbody')) {
                 `;
                 // 모달 렌더링 함수(탭 전환 지원)
                 function renderModalBody(contentHtml) {
+                  // detail 객체를 전역에 저장 (엑셀 다운로드 등에서 사용)
+                  window.currentDetail = detail;
                   document.getElementById('modal-body').innerHTML =
-                    `<div style="padding:28px 28px 16px 28px; max-width:750px; margin:0 auto;">
+                    `<div style="padding:28px 28px 16px 28px; max-width:700px; margin:0 auto;">
                       ${modalHeader}
                       <hr style="margin:12px 0;">
                       ${statBlock}
@@ -482,11 +485,11 @@ if (document.getElementById('dashboard-tbody')) {
                     const d = latestDate.split('-');
                     if (d.length === 3) dateStr = `${d[0].slice(2)}.${d[1]}.${d[2]}`;
                   }
-                  let memoStr = detail.memo;
+                  let memoStr = (window.currentDetail && window.currentDetail.memo) ? window.currentDetail.memo : '';
                   if (!memoStr) {
                     // 모달 내 메모 셀에서 직접 가져오기 (클래스/ID에 따라 조정)
                     const memoCell = document.querySelector('.result-memo, .dashboard-memo, .modal-memo');
-                    if (memoCell) memoStr = memoCell.innerText.trim();
+                    if (memoCell) memoStr = memoCell.innerText.replace(/^메모:\s*/, '').trim();
                   }
                   memoStr = memoStr ? memoStr.replace(/[<>:"/\\|?*]/g, '_') : '미입력';
                   let fileName = memoStr;
