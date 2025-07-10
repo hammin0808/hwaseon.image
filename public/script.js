@@ -303,14 +303,11 @@ if (document.getElementById('dashboard-tbody')) {
                 // 접속 기록 표
                 let ipTable = '';
                 let dailyVisitsTable = '';
-                const makeIpTable = () => {
+                const makeIpTable = (onTabSwitch) => {
                   if (detail.ips && detail.ips.length > 0) {
                     return `
                       <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
-                        <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;gap:12px;">
-                          접속 로그
-                          <button id="show-daily-visits-btn" style="margin-left:6px;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;">방문일자</button>
-                        </div>
+                        ${renderTabHeader('접속 로그', 'show-daily-visits-btn', '방문일자', onTabSwitch)}
                         <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                           <thead>
                             <tr style="background:#f4f6fa;">
@@ -333,16 +330,13 @@ if (document.getElementById('dashboard-tbody')) {
                     return '<div style="background:#f8faff;border-radius:12px;padding:18px 32px;text-align:center;color:#888;">접속 기록 없음</div>';
                   }
                 };
-                const makeDailyVisitsTable = (dailyVisits) => {
+                const makeDailyVisitsTable = (dailyVisits, onTabSwitch) => {
                   if (!dailyVisits || !dailyVisits.length) {
                     return '<div style="background:#f8faff;border-radius:12px;padding:18px 32px;text-align:center;color:#888;">일자별 방문 기록 없음</div>';
                   }
                   return `
                     <div style="background:#f8faff;border-radius:12px;padding:18px 32px;">
-                      <div style="font-size:1.08rem;font-weight:600;margin-bottom:8px;text-align:left;display:flex;align-items:center;">
-                        <span style="flex-basis:50%;max-width:50%;flex-shrink:0;white-space:nowrap;">접속 로그</span>
-                        <button id="show-ip-log-btn" style="flex-basis:50%;max-width:50%;margin-left:0;padding:2px 4px;font-size:0.98rem;background:#e3e9f7;color:#1877f2;border:none;border-radius:7px;cursor:pointer;display:block;width:100%;text-align:center;white-space:nowrap;">방문일자</button>
-                      </div>
+                      ${renderTabHeader('방문일자', 'show-ip-log-btn', '접속 로그', onTabSwitch)}
                       <table style="width:100%;font-size:1.01em;text-align:center;background:#fff;border-radius:8px;overflow:hidden;">
                         <thead>
                           <tr style="background:#f4f6fa;">
@@ -357,8 +351,8 @@ if (document.getElementById('dashboard-tbody')) {
                     </div>
                   `;
                 };
-                ipTable = makeIpTable();
-                dailyVisitsTable = makeDailyVisitsTable(detail.dailyVisits);
+                ipTable = makeIpTable(onTabSwitch);
+                dailyVisitsTable = makeDailyVisitsTable(detail.dailyVisits, onTabSwitch);
                 // 파일명 + 엑셀 버튼 (상단 넉넉한 레이아웃)
                 const modalHeader = `
                   <div style="display:flex;justify-content:space-between;align-items:center;padding:0 24px 0 24px;margin-bottom:18px;">
@@ -389,7 +383,7 @@ if (document.getElementById('dashboard-tbody')) {
                       fetch(`/image/${detail.id}/daily-visits`)
                         .then(res => res.json())
                         .then(result => {
-                          dailyVisitsTable = makeDailyVisitsTable(result.dailyVisits);
+                          dailyVisitsTable = makeDailyVisitsTable(result.dailyVisits, onTabSwitch);
                           renderModalBody(dailyVisitsTable);
                           // 접속 로그로 돌아가는 버튼 이벤트
                           setTimeout(() => {
@@ -481,6 +475,12 @@ if (document.getElementById('dashboard-tbody')) {
                     // 날짜 내림차순 정렬 후 첫 번째(최신)
                     const sortedDates = dailyVisits.map(r => r.date).sort().reverse();
                     latestDate = sortedDates[0] || '';
+                  }
+                  let dateStr = '';
+                  if (latestDate) {
+                    // YY.MM.DD 형식으로 변환
+                    const d = latestDate.split('-');
+                    if (d.length === 3) dateStr = `${d[0].slice(2)}.${d[1]}.${d[2]}`;
                   }
                   let memoStr = detail.memo;
                   if (!memoStr) {
