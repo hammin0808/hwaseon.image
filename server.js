@@ -340,7 +340,8 @@ app.get('/image/:id/detail', (req, res) => {
         const ips = (img.ips || []).map(x => ({
             ip: x.ip,
             ua: x.ua,
-            count: x.count
+            count: x.count,
+            visits: x.visits || [] // 방문 시각 배열 추가
         }));
 
         res.json({
