@@ -480,6 +480,12 @@ if (document.getElementById('dashboard-tbody')) {
                     const sortedDates = dailyVisits.map(r => r.date).sort().reverse();
                     latestDate = sortedDates[0] || '';
                   }
+                  let dateStr = '';
+                  if (latestDate) {
+                    // YY.MM.DD 형식으로 변환
+                    const d = latestDate.split('-');
+                    if (d.length === 3) dateStr = `${d[0].slice(2)}.${d[1]}.${d[2]}`;
+                  }
                   let memoStr = detail.memo;
                   if (!memoStr) {
                     // 대시보드 테이블에서 해당 id의 memo를 찾아서 사용
