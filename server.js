@@ -658,6 +658,40 @@ app.get('/dashboard-excel', async (req, res) => {
     }
 });
 
+// 이미지 상세 엑셀 다운로드 라우트
+app.get('/image/:id/excel', async (req, res) => {
+    const img = images.find(i => i.id === req.params.id);
+    if (!img) {
+        return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
+    }
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Detail');
+    worksheet.columns = [
+        { header: '이미지 링크', key: 'image', width: 40 },
+        { header: '메모', key: 'memo', width: 30 },
+        { header: '총 방문수', key: 'views', width: 12 }
+    ];
+    worksheet.addRow({
+        image: `https://hwaseon-image.com/image/${img.id}`,
+        memo: img.memo || '',
+        views: img.views || 0
+    });
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // 파일명: 메모_오늘날짜.xlsx (메모는 특수문자 제거, 30자 제한)
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '.'); // 2024.06.10
+    let safeMemo = (img.memo || 'memo').replace(/[^a-zA-Z0-9가-힣_ -]/g, '').slice(0, 30);
+    if (!safeMemo.trim()) safeMemo = 'memo';
+    const filename = `${safeMemo}_${dateStr}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    await workbook.xlsx.write(res);
+    res.end();
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Uploads directory: ${uploadsDir}`);
