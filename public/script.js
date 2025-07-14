@@ -480,17 +480,14 @@ if (document.getElementById('dashboard-tbody')) {
                     const sortedDates = dailyVisits.map(r => r.date).sort().reverse();
                     latestDate = sortedDates[0] || '';
                   }
-                  let dateStr = '';
-                  if (latestDate) {
-                    // YY.MM.DD 형식으로 변환
-                    const d = latestDate.split('-');
-                    if (d.length === 3) dateStr = `${d[0].slice(2)}.${d[1]}.${d[2]}`;
-                  }
                   let memoStr = detail.memo;
                   if (!memoStr) {
-                    // 모달 내 메모 셀에서 직접 가져오기 (클래스/ID에 따라 조정)
-                    const memoCell = document.querySelector('.memo-td');
-                    if (memoCell) memoStr = memoCell.innerText.trim();
+                    // 대시보드 테이블에서 해당 id의 memo를 찾아서 사용
+                    const row = document.querySelector(`tr[data-id="${detail.id}"]`);
+                    if (row) {
+                      const memoCell = row.querySelector('.memo-td');
+                      if (memoCell) memoStr = memoCell.innerText.trim();
+                    }
                   }
                   memoStr = memoStr ? memoStr.replace(/[<>:"/\\|?*]/g, '_') : '미입력';
                   let fileName = memoStr;
