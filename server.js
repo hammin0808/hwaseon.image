@@ -74,17 +74,17 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // 이미지 저장소 설정
+// 업로드 경로 설정
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, uploadsDir);
+      cb(null, path.join(__dirname, 'public/uploads'));
     },
     filename: (req, file, cb) => {
-        // 파일명 중복 방지를 위해 타임스탬프 추가
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, uniqueSuffix + ext);
+      const id = req.body.id || 'unknown';
+      const ext = path.extname(file.originalname);
+      cb(null, `${id}_${Date.now()}${ext}`);
     }
-});
+  });
 
 // 이미지 파일 필터링
 const fileFilter = (req, file, cb) => {
@@ -672,18 +672,20 @@ app.post('/replace-image', upload.single('image'), (req, res) => {
     const target = images.find(img => img.id === id);
     if (!target) return res.json({ success: false, error: 'ID 불일치' });
   
-    const newFilename = file.filename;
-    const newPath = `/uploads/${newFilename}`;
     const oldPath = path.join(__dirname, 'public', target.imageUrl);
+    const newUrl = '/uploads/' + file.filename;
   
-    // 새 파일로 바꾸고 기존 파일 삭제
-    target.imageUrl = newPath;
-    if (fs.existsSync(oldPath)) {
-      fs.unlinkSync(oldPath);
+    try {
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+      target.imageUrl = newUrl;
+      fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
+      res.json({ success: true, newUrl });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, error: '서버 오류 발생' });
     }
-  
-    fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
-    res.json({ success: true, newUrl: newPath });
   });
   
 
