@@ -672,22 +672,28 @@ app.post('/replace-image', upload.single('image'), (req, res) => {
     const target = images.find(img => img.id === id);
     if (!target) return res.json({ success: false, error: 'ID 불일치' });
   
-    const oldPath = path.join(__dirname, 'public', target.imageUrl);
-    const newUrl = '/uploads/' + file.filename;
+    // 파일명 및 경로 구성
+    const newFilename = `${id}_${Date.now()}.jpg`;
+    const newUrl = `/uploads/${newFilename}`;
+    const newFullPath = path.join(__dirname, 'public', 'uploads', newFilename);
+  
+    // 기존 경로
+    const oldPath = path.join(__dirname, 'public', target.imageUrl.replace(/^\/+/, ''));
   
     try {
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
+      fs.renameSync(file.path, newFullPath); // 업로드된 새 파일 이동
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); // 기존 파일 삭제
+  
+      // 이미지 메타데이터 업데이트
       target.imageUrl = newUrl;
       fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
+  
       res.json({ success: true, newUrl });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, error: '서버 오류 발생' });
+      res.json({ success: false, error: err.message });
     }
   });
-  
+
 
 
 
