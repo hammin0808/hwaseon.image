@@ -7,7 +7,7 @@ const FileStore = require('session-file-store')(session);
 const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
-const multer = require('multer');
+
 const DATA_DIR = '/data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
