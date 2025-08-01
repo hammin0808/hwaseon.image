@@ -857,27 +857,28 @@ function replaceImage(id) {
 function replaceImage(imgId) {
   const fileInput = document.getElementById(`file-${imgId}`);
   const file = fileInput.files[0];
-  if (!file) return;
+  if (!file) return alert('파일을 선택하세요');
 
   const formData = new FormData();
-  formData.append('image', file);
-  formData.append('id', imgId);
+  formData.append('image', file);     // ✅ 이미지 파일
+  formData.append('id', imgId);       // ✅ 중요! 서버가 이걸 받아야 함
 
   fetch('/replace-image', {
     method: 'POST',
     body: formData
-  }).then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        // 새 이미지 URL로 미리보기 갱신
-        const imgTag = document.getElementById(`thumb-${imgId}`);
-        imgTag.src = data.newUrl + `?t=${Date.now()}`; // 캐시 방지
-        alert('이미지가 변경되었습니다.');
-      } else {
-        alert('이미지 변경 실패: ' + data.error);
-      }
-    }).catch(err => {
-      console.error(err);
-      alert('서버 오류 발생');
-    });
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      const imgTag = document.getElementById(`thumb-${imgId}`);
+      imgTag.src = data.newUrl + `?t=${Date.now()}`;
+      alert('이미지가 변경되었습니다.');
+    } else {
+      alert('이미지 변경 실패: ' + data.error);
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert('서버 오류 발생');
+  });
 }
