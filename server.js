@@ -661,27 +661,31 @@ app.get('/dashboard-excel', async (req, res) => {
 
 
 app.post('/replace-image', upload.single('image'), (req, res) => {
-  const id = req.body.id;
-  const newPath = `data/uploads/${id}_${Date.now()}.jpg`;
-  const file = req.file;
-
-  if (!file || !id) {
-    return res.json({ success: false, error: '파일 또는 ID 누락' });
-  }
-
-  const images = JSON.parse(fs.readFileSync(IMAGES_FILE));
-  const target = images.find(img => img.id === id);
-  if (!target) return res.json({ success: false, error: 'ID 불일치' });
-
-  const oldPath = path.join(__dirname, 'public', target.imageUrl); // 예: /uploads/123.jpg
-  fs.renameSync(file.path, path.join(__dirname, 'public', newPath));
-  if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-
-  target.imageUrl = '/' + newPath.replace('public/', '');
-  fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
-
-  res.json({ success: true, newUrl: target.imageUrl });
-});
+    const id = req.body.id;
+    const file = req.file;
+  
+    if (!file || !id) {
+      return res.json({ success: false, error: '파일 또는 ID 누락' });
+    }
+  
+    const images = JSON.parse(fs.readFileSync(IMAGES_FILE));
+    const target = images.find(img => img.id === id);
+    if (!target) return res.json({ success: false, error: 'ID 불일치' });
+  
+    const newFilename = file.filename;
+    const newPath = `/uploads/${newFilename}`;
+    const oldPath = path.join(__dirname, 'public', target.imageUrl);
+  
+    // 새 파일로 바꾸고 기존 파일 삭제
+    target.imageUrl = newPath;
+    if (fs.existsSync(oldPath)) {
+      fs.unlinkSync(oldPath);
+    }
+  
+    fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
+    res.json({ success: true, newUrl: newPath });
+  });
+  
 
 
 
