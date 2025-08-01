@@ -4,11 +4,10 @@ const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
-const fetch = require('node-fetch');
 const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+const multer = require('multer');
 const DATA_DIR = '/data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
@@ -658,11 +657,38 @@ app.get('/dashboard-excel', async (req, res) => {
     }
 });
 
+
+
+
+app.post('/replace-image', upload.single('image'), (req, res) => {
+  const id = req.body.id;
+  const newPath = `data/uploads/${id}_${Date.now()}.jpg`;
+  const file = req.file;
+
+  if (!file || !id) {
+    return res.json({ success: false, error: '파일 또는 ID 누락' });
+  }
+
+  const images = JSON.parse(fs.readFileSync(IMAGES_FILE));
+  const target = images.find(img => img.id === id);
+  if (!target) return res.json({ success: false, error: 'ID 불일치' });
+
+  const oldPath = path.join(__dirname, 'public', target.imageUrl); // 예: /uploads/123.jpg
+  fs.renameSync(file.path, path.join(__dirname, 'public', newPath));
+  if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+
+  target.imageUrl = '/' + newPath.replace('public/', '');
+  fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
+
+  res.json({ success: true, newUrl: target.imageUrl });
+});
+
+
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Uploads directory: ${uploadsDir}`);
 });
-
 
 
 // 에러 핸들링 미들웨어 (모든 라우트 정의 이후에 위치)

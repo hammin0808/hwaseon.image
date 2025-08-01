@@ -204,19 +204,23 @@ if (document.getElementById('dashboard-tbody')) {
             }
           }
           return `
-            <tr data-id="${imgId}" style="vertical-align:middle;">
-              <td style="padding:10px 8px;min-width:54px;max-width:54px;"><img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"></td>
-              <td style="padding:10px 8px;min-width:220px;max-width:260px;">
-                <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
-                <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}" style="display:inline-block;max-width:180px;vertical-align:middle;white-space:nowrap;text-overflow:ellipsis;">${fullUrl}</a>
-              </td>
-              <td style="padding:10px 8px;min-width:120px;max-width:220px;">${mainReferer}</td>
-              <td class="memo-td" style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:240px;">${img.memo || '-'}</td>
-              <td style="padding:10px 8px;min-width:80px;max-width:120px;text-align:center;">${ownerCell}</td>
-              <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
-              <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
-            </tr>
-          `;
+          <tr data-id="${imgId}" style="vertical-align:middle;">
+            <td style="padding:10px 8px;min-width:80px;">
+              <img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" id="thumb-${imgId}" data-img-url="${thumbUrl}" style="max-width:44px;max-height:44px;border-radius:7px;box-shadow:0 2px 8px rgba(24,119,242,0.10);"><br>
+              <input type="file" id="file-${imgId}" style="display:none" onchange="replaceImage('${imgId}')">
+              <button onclick="document.getElementById('file-${imgId}').click()" style="margin-top:6px;">변경</button>
+            </td>
+            <td style="padding:10px 8px;min-width:220px;max-width:260px;">
+              <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
+              <a href="${fullUrl}" target="_blank" class="dashboard-url-link" title="${fullUrl}">${fullUrl}</a>
+            </td>
+            <td style="padding:10px 8px;min-width:120px;max-width:220px;">${mainReferer}</td>
+            <td class="memo-td" style="word-break:break-all;padding:10px 8px;min-width:160px;max-width:240px;">${img.memo || '-'}</td>
+            <td style="padding:10px 8px;min-width:80px;max-width:120px;text-align:center;">${ownerCell}</td>
+            <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-blue dashboard-detail-btn" data-idx="${idx}">보기</button></td>
+            <td style="padding:10px 8px;min-width:60px;max-width:80px;"><button class="dashboard-btn-red dashboard-delete-btn">삭제</button></td>
+          </tr>
+        `;
         }).join('');
 
         // 복사 버튼 이벤트
@@ -818,3 +822,62 @@ if (uploadBtn) {
     window.location.reload();
   });
 } 
+
+function replaceImage(id) {
+  const input = document.getElementById("fileInput-" + id);
+  const file = input.files[0];
+  if (!file) {
+    alert("이미지를 선택하세요.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  fetch(`/image/${id}/replace`, {
+    method: "POST",
+    body: formData
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.success) {
+        alert("✅ 이미지 교체 완료");
+        const img = document.getElementById("img-" + id);
+        img.src = data.newUrl + "?t=" + Date.now(); // 캐시 우회
+      } else {
+        alert("❌ 실패: " + data.error);
+      }
+    })
+    .catch((err) => {
+      alert("요청 오류: " + err.message);
+    });
+}
+
+
+function replaceImage(imgId) {
+  const fileInput = document.getElementById(`file-${imgId}`);
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('id', imgId);
+
+  fetch('/replace-image', {
+    method: 'POST',
+    body: formData
+  }).then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        // 새 이미지 URL로 미리보기 갱신
+        const imgTag = document.getElementById(`thumb-${imgId}`);
+        imgTag.src = data.newUrl + `?t=${Date.now()}`; // 캐시 방지
+        alert('이미지가 변경되었습니다.');
+      } else {
+        alert('이미지 변경 실패: ' + data.error);
+      }
+    }).catch(err => {
+      console.error(err);
+      alert('서버 오류 발생');
+    });
+}
