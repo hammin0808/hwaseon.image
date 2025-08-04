@@ -97,17 +97,17 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
+      cb(null, true);
     } else {
-        cb(new Error('지원하지 않는 이미지 형식입니다.'), false);
+      cb(new Error('지원하지 않는 이미지 형식입니다.'), false);
     }
-};
-
-
-const upload = multer({ 
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 }
+  };
+  
+  // 메모리에 저장 (파일 직접 덮어쓸 거라 디스크에 쓸 필요 없음)
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   });
 
 
@@ -673,40 +673,28 @@ app.get('/dashboard-excel', async (req, res) => {
 app.post('/replace-image', upload.single('image'), (req, res) => {
     const id = req.body.id;
     const file = req.file;
-
-    if (!file || !id) {
-        return res.status(400).json({ success: false, error: '파일 또는 ID 누락' });
+  
+    if (!id || !file) {
+      return res.json({ success: false, error: 'ID 또는 파일 누락' });
     }
-
-    const target = images.find(img => img.id === id);
-    if (!target) {
-        return res.status(404).json({ success: false, error: '해당 ID의 이미지가 존재하지 않습니다.' });
-    }
-
-    const oldFilename = target.filename;
-    const oldPath = path.join('/data/uploads', oldFilename);
-
+  
     try {
-        // 기존 파일 삭제
-        if (fs.existsSync(oldPath)) {
-            fs.unlinkSync(oldPath);
-        }
-
-        // 새 파일을 기존 파일명으로 덮어쓰기
-        const newPath = path.join('/data/uploads', oldFilename);
-        fs.renameSync(file.path, newPath);
-
-        // 🔒 URL과 메타데이터는 그대로 유지
-        persistImages(); // 저장
-        return res.json({ success: true, message: '이미지가 성공적으로 교체되었습니다.', id, filename: oldFilename });
+      const images = JSON.parse(fs.readFileSync(IMAGES_FILE, 'utf-8'));
+      const target = images.find(img => img.id === id);
+  
+      if (!target) {
+        return res.json({ success: false, error: '이미지 ID 불일치' });
+      }
+  
+      const imagePath = path.join(DATA_DIR, 'uploads', target.filename);
+      fs.writeFileSync(imagePath, file.buffer);  // 기존 이미지 덮어쓰기
+  
+      res.json({ success: true, newUrl: target.url });
     } catch (err) {
-        console.error('이미지 교체 실패:', err);
-        return res.status(500).json({ success: false, error: '이미지 교체 중 오류 발생' });
+      res.json({ success: false, error: err.message });
     }
-});
-
-
-
+  });
+  
 
 
 app.listen(PORT, () => {
