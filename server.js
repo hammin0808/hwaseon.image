@@ -78,26 +78,19 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 
-// 이미지 저장소 설정
-// 업로드 경로 설정
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, 'public/uploads'));
+      const dir = path.join(__dirname, 'public/uploads');
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
     },
     filename: (req, file, cb) => {
-      const id = req.body.id || 'unknown';
+      const id = req.body.id;
       const ext = path.extname(file.originalname);
-      cb(null, `${id}_${Date.now()}${ext}`);
+      cb(null, `${id}${ext}`); // 항상 동일한 파일명
     }
   });
 
-const upload = multer({ 
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB 제한
-    }
-});
 
 
 // 이미지 파일 필터링
@@ -109,6 +102,14 @@ const fileFilter = (req, file, cb) => {
         cb(new Error('지원하지 않는 이미지 형식입니다.'), false);
     }
 };
+
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 }
+  });
+
 
 
 // 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
