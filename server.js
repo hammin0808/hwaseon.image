@@ -8,10 +8,13 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+
 const DATA_DIR = '/data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
 const MAX_DAILY_TRAFFIC = 1500;
+
+
 
 // 정적 파일 제공
 app.use(express.static('public'));
@@ -20,6 +23,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     next();
 });
+
 
 // 세션 설정
 app.use(session({
@@ -73,6 +77,7 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+
 // 이미지 저장소 설정
 // 업로드 경로 설정
 const storage = multer.diskStorage({
@@ -86,16 +91,6 @@ const storage = multer.diskStorage({
     }
   });
 
-// 이미지 파일 필터링
-const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('지원하지 않는 이미지 형식입니다.'), false);
-    }
-};
-
 const upload = multer({ 
     storage: storage,
     fileFilter: fileFilter,
@@ -104,6 +99,16 @@ const upload = multer({
     }
 });
 
+
+// 이미지 파일 필터링
+const fileFilter = (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('지원하지 않는 이미지 형식입니다.'), false);
+    }
+};
 
 
 // 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
@@ -130,6 +135,7 @@ function isMySiteReferer(url) {
   if (!url) return false;
   return /hwaseon-image\.com|onrender\.com/.test(url);
 }
+
 
 // 이미지 업로드 라우트
 app.post('/upload', upload.single('image'), (req, res) => {
@@ -359,6 +365,7 @@ app.get('/image/:id/detail', (req, res) => {
     }
 });
 
+
 // 이미지별 일자별 방문수 집계 API
 app.get('/image/:id/daily-visits', (req, res) => {
     try {
@@ -388,10 +395,12 @@ app.get('/image/:id/daily-visits', (req, res) => {
     }
 });
 
+
 // 로그인 페이지 라우트
 app.get('/login', (req, res) => {
     res.redirect('/login.html');
 });
+
 
 // 로그인 라우트
 app.post('/login', (req, res) => {
@@ -456,6 +465,7 @@ app.get('/dashboard-data', (req, res) => {
         res.status(500).json({ error: '대시보드 데이터 조회 중 오류가 발생했습니다.' });
     }
 });
+
 
 // 대시보드 페이지 - 인증 필요
 app.get('/dashboard', (req, res) => {
@@ -659,40 +669,41 @@ app.get('/dashboard-excel', async (req, res) => {
 
 
 
-
 app.post('/replace-image', upload.single('image'), (req, res) => {
     const id = req.body.id;
     const file = req.file;
-  
+
     if (!file || !id) {
-      return res.json({ success: false, error: '파일 또는 ID 누락' });
+        return res.status(400).json({ success: false, error: '파일 또는 ID 누락' });
     }
-  
-    const images = JSON.parse(fs.readFileSync(IMAGES_FILE));
+
     const target = images.find(img => img.id === id);
-    if (!target) return res.json({ success: false, error: 'ID 불일치' });
-  
-    // 파일명 및 경로 구성
-    const newFilename = `${id}_${Date.now()}.jpg`;
-    const newUrl = `/uploads/${newFilename}`;
-    const newFullPath = path.join(__dirname, 'public', 'uploads', newFilename);
-  
-    // 기존 경로
-    const oldPath = path.join(__dirname, 'public', target.imageUrl.replace(/^\/+/, ''));
-  
-    try {
-      fs.renameSync(file.path, newFullPath); // 업로드된 새 파일 이동
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); // 기존 파일 삭제
-  
-      // 이미지 메타데이터 업데이트
-      target.imageUrl = newUrl;
-      fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2));
-  
-      res.json({ success: true, newUrl });
-    } catch (err) {
-      res.json({ success: false, error: err.message });
+    if (!target) {
+        return res.status(404).json({ success: false, error: '해당 ID의 이미지가 존재하지 않습니다.' });
     }
-  });
+
+    const oldFilename = target.filename;
+    const oldPath = path.join('/data/uploads', oldFilename);
+
+    try {
+        // 기존 파일 삭제
+        if (fs.existsSync(oldPath)) {
+            fs.unlinkSync(oldPath);
+        }
+
+        // 새 파일을 기존 파일명으로 덮어쓰기
+        const newPath = path.join('/data/uploads', oldFilename);
+        fs.renameSync(file.path, newPath);
+
+        // 🔒 URL과 메타데이터는 그대로 유지
+        persistImages(); // 저장
+        return res.json({ success: true, message: '이미지가 성공적으로 교체되었습니다.', id, filename: oldFilename });
+    } catch (err) {
+        console.error('이미지 교체 실패:', err);
+        return res.status(500).json({ success: false, error: '이미지 교체 중 오류 발생' });
+    }
+});
+
 
 
 
