@@ -1,29 +1,75 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Hwaseon 이미지 업로드</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- 페이지 전용 CSS -->
+  <link rel="stylesheet" href="index.css" />
 </head>
-<body>
-  <div class="container">
-    <h1>Hwaseon 이미지 업로드</h1>
-    <form id="uploadForm" enctype="multipart/form-data">
-      <label class="custom-file-upload">
-        <input type="file" name="image" id="imageInput" required>
-        <span class="upload-icon">📁</span>
-        <span class="upload-text">이미지를 선택하세요.</span>
-      </label>
-      <div id="preview" class="upload-preview" style="display:none;"></div>
-      <div class="input-group">
-        <input type="text" name="memo" placeholder="메모 입력" required>
-      </div>
-      <div id="result" class="result" style="display:none;"></div>
-      <button type="submit">업로드</button>
-    </form>
-    <button id="dashboardBtn" class="dashboard-btn">대시보드</button>
-    <button id="multiMemoBtn" class="dashboard-btn" style="margin-top:20px;background:#19c37d;">다중 URL 만들기</button>
-  </div>
+<body class="page page--index">
+
+  <!-- 헤더 -->
+  <header class="site-header">
+    <div class="site-header__inner container">
+      <a class="brand" href="index.html" aria-label="Hwaseon 홈">
+        <!-- 로고 파일 위치만 맞춰주세요. 파일명이 'hwaseon로고.png'라면 그대로 사용 -->
+        <img src="hwaseon로고.png" alt="Hwaseon" class="brand__logo" />
+      </a>
+      <nav class="site-nav">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="login.html">Login</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- 메인 -->
+  <main class="container section">
+    <div class="intro">
+      <h1 class="intro__title">이미지 업로드</h1>
+      <p class="intro__sub">1개의 이미지와 메모로 공유 URL을 생성하세요.</p>
+    </div>
+
+    <section class="card">
+      <form id="uploadForm" enctype="multipart/form-data" class="upload-form">
+    
+        <!-- 섹션 1 : 이미지 선택 -->
+        <div class="form-section">
+          <div class="form-label">IMAGE</div>
+          <label class="fileuploader form-row" for="imageInput">
+            <input type="file" id="imageInput" name="image" accept="image/*" required />
+            <span aria-hidden>📁</span><span>이미지를 선택하세요.</span>
+          </label>
+          <div id="preview" class="pill pill--muted" style="display:none;"></div>
+        </div>
+    
+        <!-- 섹션 2 : 메모 -->
+        <div class="form-section">
+          <div class="form-label">MEMO</div>
+          <div class="control input form-row">
+            <input id="memoInput" type="text" name="memo" placeholder="메모 입력" required />
+          </div>
+        </div>
+    
+        <!-- 버튼 -->
+        <div class="actions">
+          <button id="multiMemoBtn" type="button" class="btn btn--dark">다중 URL</button>
+          <button type="submit" class="btn">업로드</button>
+        </div>
+      </form>
+    </section>
+    
+
+    <!-- 업로드 결과 -->
+    <section id="result" class="result" style="display:none;"></section>
+  </main>
+
+  <!-- 푸터 -->
+  <footer class="site-footer">
+    <div class="container">© Made by HWASEON · JEONG HAE MIN</div>
+  </footer>
+
+  <!-- 공용 스크립트 (이미 사용 중인 파일) -->
   <script src="script.js"></script>
 </body>
-</html> 
+</html>
