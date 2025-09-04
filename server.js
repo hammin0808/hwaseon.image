@@ -1,40 +1,40 @@
-/* server.js — Hwaseon Image Host (Render /data persistent disk)
+/* server.js — Hwaseon Image Host (Persistent Disk /data)
  * - Express + Session(FileStore@/data/sessions)
- * - Public static: ./public
- * - Image upload: memory → /data/uploads/<id>.<ext>
- * - Metadata: /data/images.json, /data/users.json
- * - Health check: /healthz (200)
- * - Bind: 0.0.0.0 with PORT from env
+ * - Static: ./public
+ * - Upload: diskStorage -> /data/uploads/<id>.<ext> (메모리 절약)
+ * - Metadata: /data/images.json, /data/users.json (집계형 통계)
+ * - Health: /healthz (200)
+ * - Bind: 0.0.0.0 + PORT from env
+ * - Migration: 기존 ips/visits/referers -> dailyCounts/topReferers로 1회 변환
  */
 
 const express = require('express');
-const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
+const multer = require('multer');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const ExcelJS = require('exceljs');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-const MAX_DAILY_TRAFFIC = 1500;
 
-// ---- Utilities -------------------------------------------------------------
-function ensureDir(p) {
-  try { fs.mkdirSync(p, { recursive: true }); } catch (_) {}
-}
-function isWritable(dir) {
-  try {
-    const t = path.join(dir, '.rwtest');
-    fs.writeFileSync(t, 'ok');
-    fs.unlinkSync(t);
-    return true;
-  } catch (_) { return false; }
-}
+// ---- 운영 상수 --------------------------------------------------------------
+const DATA_DIR      = '/data';                     // Persistent Disk
+const USERS_FILE    = path.join(DATA_DIR, 'users.json');
+const IMAGES_FILE   = path.join(DATA_DIR, 'images.json');
+const UPLOADS_DIR   = path.join(DATA_DIR, 'uploads');
+const SESSIONS_DIR  = path.join(DATA_DIR, 'sessions');
+const MAX_DAILY_TRAFFIC = 1500;                   // 이미지별 일일 제한
+const MAX_REFERERS      = 100;                    // referer의 상한
+const MAX_DAYS_KEEP     = 180;                    // 일자 집계 보존일수
+const MAX_UPLOAD_MB     = 5;                      // 업로드 제한(MB)
+
+// ---- 부팅 가드(디렉토리/파일) ----------------------------------------------
+function ensureDir(p) { try { fs.mkdirSync(p, { recursive: true }); } catch(_){} }
 function loadJson(file, fallback) {
-  try {
-    if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) { console.error('[loadJson]', e); }
+  try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (e) { console.error('[loadJson]', e); }
   try { fs.writeFileSync(file, JSON.stringify(fallback, null, 2)); } catch (_) {}
   return fallback;
 }
@@ -43,37 +43,26 @@ function saveJson(file, data) {
   catch (e) { console.error('[saveJson]', e); }
 }
 
-// ---- Data dirs (prefer /data; fallback to ./data if not writable) ----------
-let DATA_DIR = '/data';
-if (!isWritable(DATA_DIR)) {
-  console.warn('[boot] /data not writable. Falling back to ./data (non-persistent).');
-  DATA_DIR = path.join(__dirname, 'data');
-}
-const USERS_FILE   = path.join(DATA_DIR, 'users.json');
-const IMAGES_FILE  = path.join(DATA_DIR, 'images.json');
-const UPLOADS_DIR  = path.join(DATA_DIR, 'uploads');
-const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
-
 ensureDir(DATA_DIR);
 ensureDir(UPLOADS_DIR);
 ensureDir(SESSIONS_DIR);
 
-// ---- App basics ------------------------------------------------------------
-app.set('trust proxy', 1); // Render behind proxy
+// ---- 앱 기본 ---------------------------------------------------------------
+app.set('trust proxy', 1);
 app.use(express.static('public'));
 app.use(express.json());
 
-// Very open CORS (이미지 핫링크용)
+// 핫링크 허용(CORS 오픈) — 필요시 도메인으로 제한
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*'); // 필요 시 도메인 제한 고려
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent');
-  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods','GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent');
+  res.setHeader('Access-Control-Max-Age','86400');
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
 
-// ---- Sessions --------------------------------------------------------------
+// 세션
 app.use(session({
   secret: 'your-secret-key',
   resave: false,
@@ -84,17 +73,14 @@ app.use(session({
     reapInterval: 60 * 60,
     retries: 0
   }),
-  cookie: {
-    secure: false,               // Render: HTTPS 종단 앞단이라면 true 고려
-    maxAge: 24 * 60 * 60 * 1000  // 24h
-  }
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// ---- In-memory state (backed by /data json) --------------------------------
+// ---- 데이터 로드 ------------------------------------------------------------
 let users  = loadJson(USERS_FILE, []);
 let images = loadJson(IMAGES_FILE, []);
 
-// Ensure admin
+// admin 보장
 if (!users.some(u => u.id === 'admin')) {
   users.unshift({ id: 'admin', pw: 'hwaseon@00', role: 'admin', createdAt: new Date().toISOString() });
   saveJson(USERS_FILE, users);
@@ -102,7 +88,65 @@ if (!users.some(u => u.id === 'admin')) {
 function persistUsers()  { saveJson(USERS_FILE, users); }
 function persistImages() { saveJson(IMAGES_FILE, images); }
 
-// ---- Helpers for referer filtering -----------------------------------------
+// ---- 레거시 -> 집계형 마이그레이션 -----------------------------------------
+function migrateLegacyImage(img) {
+  // dailyCounts 생성
+  if (!img.dailyCounts) img.dailyCounts = {};
+  // topReferers 생성
+  if (!img.topReferers) img.topReferers = {};
+
+  // 1) legacy visits로부터 dailyCounts 집계
+  if (Array.isArray(img.ips)) {
+    for (const entry of img.ips) {
+      const visits = Array.isArray(entry?.visits) ? entry.visits : [];
+      for (const v of visits) {
+        const t = v?.time;
+        if (t && typeof t === 'string' && t.length >= 10) {
+          const d = t.slice(0,10); // YYYY-MM-DD
+          img.dailyCounts[d] = (img.dailyCounts[d] || 0) + 1;
+        }
+      }
+    }
+  }
+  // 2) legacy referers -> topReferers
+  if (Array.isArray(img.referers)) {
+    for (const r of img.referers) {
+      const url = r?.referer;
+      const count = r?.count || 0;
+      if (url && count > 0) {
+        img.topReferers[url] = (img.topReferers[url] || 0) + count;
+      }
+    }
+  }
+  // 3) referer 상한
+  const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
+  if (entries.length > MAX_REFERERS) {
+    img.topReferers = Object.fromEntries(entries.slice(0, MAX_REFERERS));
+  }
+  // 4) 오래된 일자 정리
+  const days = Object.keys(img.dailyCounts).sort(); // asc
+  if (days.length > MAX_DAYS_KEEP) {
+    const cut = days.length - MAX_DAYS_KEEP;
+    for (let i=0;i<cut;i++) delete img.dailyCounts[days[i]];
+  }
+  // 5) legacy 필드 제거
+  delete img.ips;
+  delete img.referers;
+
+  return img;
+}
+// 1회 마이그레이션 수행
+let migrated = false;
+for (let i=0;i<images.length;i++) {
+  const img = images[i];
+  if (img && (img.ips || img.referers)) { // 레거시 존재 시 변환
+    images[i] = migrateLegacyImage(img);
+    migrated = true;
+  }
+}
+if (migrated) persistImages();
+
+// ---- 유틸 (블로그 판별) ------------------------------------------------------
 function isRealBlogPost(url) {
   if (!url) return false;
   return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/\d+|PostView\.naver\?blogId=[^&]+&logNo=\d+)/.test(url);
@@ -121,25 +165,41 @@ function isMySiteReferer(url) {
   return /hwaseon-image\.com|onrender\.com/.test(url);
 }
 
-// ---- Multer (memory) -------------------------------------------------------
-const upload = multer({
+// ---- Multer: 업로드는 디스크 직저장 -----------------------------------------
+const diskStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
+    const id  = Date.now().toString() + Math.floor(Math.random()*10000);
+    cb(null, `${id}${ext}`);
+  }
+});
+const uploadDisk = multer({
+  storage: diskStorage,
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg','image/png','image/webp','image/gif'].includes(file.mimetype);
+    cb(ok ? null : new Error('지원하지 않는 이미지 형식입니다.'), ok);
+  },
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 }
+});
+
+// 교체는 메모리로 받아 **덮어쓰기만** 수행(파일명 유지)
+const uploadMem = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     const ok = ['image/jpeg','image/png','image/webp','image/gif'].includes(file.mimetype);
     cb(ok ? null : new Error('지원하지 않는 이미지 형식입니다.'), ok);
   },
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 }
 });
 
-// ---- Routes ----------------------------------------------------------------
+// ---- 라우트 ------------------------------------------------------------------
 
-// Health check (Render)
+// Health check
 app.get('/healthz', (_, res) => res.status(200).send('ok'));
 
-// Login pages
+// 로그인/세션
 app.get('/login', (req, res) => res.redirect('/login.html'));
-
-// Auth APIs
 app.post('/login', (req, res) => {
   try {
     const { id, pw } = req.body || {};
@@ -172,7 +232,7 @@ app.get('/me', (req, res) => {
   }
 });
 
-// Dashboard HTML (auth required)
+// 대시보드 페이지
 app.get('/dashboard', (req, res) => {
   if (!req.session.user) return res.redirect('/login.html');
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -182,21 +242,7 @@ app.get('/dashboard.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Dashboard data
-app.get('/dashboard-data', (req, res) => {
-  try {
-    if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
-    const data = (req.session.user.role === 'admin')
-      ? images
-      : images.filter(img => img.owner === req.session.user.id);
-    res.json(data);
-  } catch (e) {
-    console.error('Dashboard data error:', e);
-    res.status(500).json({ error: '대시보드 데이터 조회 중 오류가 발생했습니다.' });
-  }
-});
-
-// Users admin
+// 사용자/권한
 app.get('/users', (req, res) => {
   try {
     if (!req.session.user || req.session.user.role !== 'admin')
@@ -238,59 +284,36 @@ app.delete('/users/:id', (req, res) => {
   }
 });
 
-// Upload (single or memo array -> multi entries)
-app.post('/upload', upload.single('image'), (req, res) => {
+// 업로드(디스크 직저장)
+app.post('/upload', uploadDisk.single('image'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '이미지 파일이 필요합니다.' });
 
-    const ext = (path.extname(req.file.originalname) || '').toLowerCase() || '.jpg';
+    const filename = req.file.filename;     // "<id>.<ext>"
+    const id = path.parse(filename).name;   // "<id>"
     const owner = req.session.user ? req.session.user.id : null;
+    const memo  = (req.body?.memo ?? '').toString();
+    const url   = `/image/${id}`;
 
-    const memos = Array.isArray(req.body.memo) ? req.body.memo : [ (req.body.memo ?? '').toString() ];
-    const urls = [];
-
-    for (const m of memos) {
-      const id = Date.now().toString() + Math.floor(Math.random() * 10000);
-      const filename = `${id}${ext}`;
-      const filePath = path.join(UPLOADS_DIR, filename);
-      fs.writeFileSync(filePath, req.file.buffer);
-
-      const url = `/image/${id}`;
-      images.push({
-        id,
-        filename,
-        url,
-        memo: (m ?? '').toString(),
-        owner,
-        views: 0,
-        ips: [],
-        referers: [],
-        createdAt: new Date().toISOString()
-      });
-      urls.push(url);
-    }
+    images.push({
+      id, filename, url, memo, owner,
+      views: 0,
+      dailyCounts: {},       // 집계형
+      topReferers: {},       // 집계형
+      createdAt: new Date().toISOString()
+    });
     persistImages();
 
-    if (urls.length === 1) return res.json({ url: urls[0], memo: memos[0] ?? '' });
-    return res.json({ urls, memos });
+    return res.json({ url, memo });
   } catch (e) {
     console.error('Upload error:', e);
     res.status(500).json({ error: '이미지 업로드 중 오류가 발생했습니다.' });
   }
 });
 
-// Image (CORS preflight handled globally)
+// 이미지 제공(집계/캐시 포함)
 app.get('/image/:id', (req, res) => {
-  const id = (req.params.id || '').replace(/\.[^/.]+$/,''); // tolerate .jpg suffix
-  console.log('Image request:', {
-    originalId: req.params.id,
-    cleanedId: id,
-    referer: req.headers['referer'],
-    userAgent: req.headers['user-agent'],
-    origin: req.headers['origin'],
-    host: req.headers['host']
-  });
-
+  const id = (req.params.id || '').replace(/\.[^/.]+$/,''); // 확장자 붙여도 허용
   const img = images.find(i => i.id === id);
   if (!img) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
 
@@ -305,40 +328,47 @@ app.get('/image/:id', (req, res) => {
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
 
   const referer = req.headers['referer'] || '';
-  const ip = (req.headers['x-forwarded-for'] || req.connection?.remoteAddress || '').split(',')[0].trim();
-  const ua = req.headers['user-agent'] || '';
-  const now = new Date();
-
-  img.views ??= 0;
-  if (!Array.isArray(img.ips)) img.ips = [];
-  if (!Array.isArray(img.referers)) img.referers = [];
-
+  // 통계: 네이버 블로그만 카운트(자체/렌더 도메인은 제외)
   if (isNaverBlogReferer(referer) && !isMySiteReferer(referer)) {
-    img.views += 1;
+    img.views = (img.views || 0) + 1;
 
-    let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-    if (!ipInfo) {
-      img.ips.push({ ip, ua, count: 1, visits: [{ time: now.toISOString() }] });
-    } else {
-      ipInfo.count = (ipInfo.count || 0) + 1;
-      if (!Array.isArray(ipInfo.visits)) ipInfo.visits = [];
-      ipInfo.visits.push({ time: now.toISOString() });
+    // 일자 집계
+    if (!img.dailyCounts) img.dailyCounts = {};
+    img.dailyCounts[todayStr] = (img.dailyCounts[todayStr] || 0) + 1;
+
+    // referer 집계(+상위 N 유지)
+    if (!img.topReferers) img.topReferers = {};
+    img.topReferers[referer] = (img.topReferers[referer] || 0) + 1;
+
+    const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
+    if (entries.length > MAX_REFERERS) {
+      img.topReferers = Object.fromEntries(entries.slice(0, MAX_REFERERS));
     }
 
-    const existing = img.referers.find(r => r.referer === referer);
-    if (existing) existing.count = (existing.count || 0) + 1;
-    else img.referers.push({ referer, count: 1, createdAt: now.toISOString() });
+    // 오래된 일자 정리
+    const days = Object.keys(img.dailyCounts).sort(); // asc
+    if (days.length > MAX_DAYS_KEEP) {
+      const cut = days.length - MAX_DAYS_KEEP;
+      for (let i=0;i<cut;i++) delete img.dailyCounts[days[i]];
+    }
   }
-
   persistImages();
 
+  // 캐시 헤더(교체를 고려하여 짧게)
+  const stat = fs.statSync(filePath);
+  res.set('Last-Modified', stat.mtime.toUTCString());
+  res.set('ETag', `${stat.ino}-${stat.mtimeMs}-${stat.size}`);
+  res.set('Cache-Control', 'public, max-age=600, must-revalidate'); // 10분
+
+  // Content-Type
   const ext = path.extname(img.filename).toLowerCase();
   const map = { '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.gif':'image/gif', '.webp':'image/webp' };
   res.set('Content-Type', map[ext] || 'application/octet-stream');
+
   res.sendFile(filePath);
 });
 
-// Image detail
+// 상세
 app.get('/image/:id/detail', (req, res) => {
   try {
     const img = images.find(i => i.id === req.params.id);
@@ -346,37 +376,26 @@ app.get('/image/:id/detail', (req, res) => {
 
     const views = img.views || 0;
 
-    let unique = img.ips ? img.ips.length : 0;
-    if (unique > views) unique = views;
-
-    const todayStr = new Date().toISOString().slice(0,10);
-    let todayVisits = 0;
-    (img.ips || []).forEach(x => {
-      (x.visits || []).forEach(v => {
-        if (v.time && v.time.slice(0,10) === todayStr) todayVisits += 1;
-      });
-    });
-
-    let blogUrl = null, blogCreated = null;
-    if (img.referers && img.referers.length > 0) {
-      const sorted = img.referers.slice().sort((a,b) => (b.count || 0) - (a.count || 0));
-      blogUrl = sorted[0].referer;
-      blogCreated = sorted[0].createdAt;
+    // 가장 많이 불러간 블로그 referer
+    let blogUrl = null, blogCount = 0;
+    if (img.topReferers && typeof img.topReferers === 'object') {
+      const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
+      if (entries.length) { blogUrl = entries[0][0]; blogCount = entries[0][1]; }
     }
 
-    const ips = (img.ips || []).map(x => ({
-      ip: x.ip, ua: x.ua, count: x.count, visits: x.visits || []
-    }));
+    // 오늘 방문수
+    const todayStr = new Date().toISOString().slice(0,10);
+    const todayVisits = (img.dailyCounts?.[todayStr]) || 0;
 
     res.json({
       id: img.id,
       filename: img.filename,
       blogUrl,
-      blogCreated,
+      blogCount,
       views,
       todayVisits,
-      ips,
-      referers: img.referers || []
+      dailyCounts: img.dailyCounts || {},
+      topReferers: img.topReferers || {}
     });
   } catch (e) {
     console.error('상세 정보 조회 오류:', e);
@@ -384,23 +403,16 @@ app.get('/image/:id/detail', (req, res) => {
   }
 });
 
-// Daily visits
+// 일자별 방문
 app.get('/image/:id/daily-visits', (req, res) => {
   try {
     const img = images.find(i => i.id === req.params.id);
     if (!img) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
 
-    const dailyMap = {};
-    (img.ips || []).forEach(ipinfo => {
-      (ipinfo.visits || []).forEach(v => {
-        const date = v.time ? v.time.slice(0,10) : null;
-        if (date) dailyMap[date] = (dailyMap[date] || 0) + 1;
-      });
-    });
-    const dailyVisits = Object.entries(dailyMap)
+    const dc = img.dailyCounts || {};
+    const dailyVisits = Object.entries(dc)
       .map(([date, count]) => ({ date, count }))
       .sort((a,b) => a.date.localeCompare(b.date));
-
     res.json({ id: img.id, dailyVisits });
   } catch (e) {
     console.error('일자별 방문수 조회 오류:', e);
@@ -408,40 +420,31 @@ app.get('/image/:id/daily-visits', (req, res) => {
   }
 });
 
-// Delete image (file + metadata)
-app.delete('/image/:id', (req, res) => {
+// 대시보드 데이터(엑셀)
+app.get('/dashboard-data', (req, res) => {
   try {
-    const id = req.params.id;
-    const idx = images.findIndex(img => img.id === id);
-    if (idx === -1) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
-
-    const filePath = path.join(UPLOADS_DIR, images[idx].filename);
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); }
-      catch (err) { console.error('Error deleting image file:', err); }
-    }
-    images.splice(idx, 1);
-    persistImages();
-
-    res.json({ success: true });
+    if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+    const data = (req.session.user.role === 'admin')
+      ? images
+      : images.filter(img => img.owner === req.session.user.id);
+    res.json(data);
   } catch (e) {
-    console.error('이미지 삭제 오류:', e);
-    res.status(500).json({ error: '이미지 삭제 중 오류가 발생했습니다.' });
+    console.error('Dashboard data error:', e);
+    res.status(500).json({ error: '대시보드 데이터 조회 중 오류가 발생했습니다.' });
   }
 });
-
-// Excel export (dashboard)
 app.get('/dashboard-excel', async (req, res) => {
   try {
     if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
 
-    const filtered = (req.session.user.role === 'admin') ? images : images.filter(i => i.owner === req.session.user.id);
+    const filtered = (req.session.user.role === 'admin')
+      ? images
+      : images.filter(i => i.owner === req.session.user.id);
 
+    // 모든 날짜 수집(집계형)
     const allDatesSet = new Set();
     filtered.forEach(img => {
-      (img.ips || []).forEach(ipinfo => {
-        (ipinfo.visits || []).forEach(v => { if (v.time) allDatesSet.add(v.time.slice(0,10)); });
-      });
+      Object.keys(img.dailyCounts || {}).forEach(d => allDatesSet.add(d));
     });
     const allDates = Array.from(allDatesSet).sort((a,b) => b.localeCompare(a)); // desc
 
@@ -450,7 +453,7 @@ app.get('/dashboard-excel', async (req, res) => {
 
     const baseColumns = [
       { header: '이미지 링크', key: 'image', width: 40 },
-      { header: '블로그 URL', key: 'blog', width: 40 },
+      { header: '주요 블로그 URL', key: 'blog', width: 40 },
       { header: '메모', key: 'memo', width: 30 },
       { header: '총 방문수', key: 'views', width: 12 }
     ];
@@ -458,25 +461,19 @@ app.get('/dashboard-excel', async (req, res) => {
     ws.columns = [...baseColumns, ...dateColumns];
 
     filtered.forEach(img => {
+      // 블로그 상위 1개
       let blogUrl = '-';
-      if (img.referers && img.referers.length > 0) {
-        const real = img.referers.find(r => isRealBlogPost(r.referer));
-        blogUrl = real ? real.referer : '-';
+      if (img.topReferers && typeof img.topReferers === 'object') {
+        const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
+        if (entries.length) blogUrl = entries[0][0];
       }
-      const dailyMap = {};
-      (img.ips || []).forEach(ipinfo => {
-        (ipinfo.visits || []).forEach(v => {
-          const date = v.time ? v.time.slice(0,10) : null;
-          if (date) dailyMap[date] = (dailyMap[date] || 0) + 1;
-        });
-      });
       const row = {
         image: `${req.protocol}://${req.get('host')}/image/${img.id}`,
         blog: blogUrl,
         memo: img.memo || '',
         views: img.views || 0
       };
-      allDates.forEach(d => { row[`date_${d}`] = dailyMap[d] || 0; });
+      allDates.forEach(d => { row[`date_${d}`] = (img.dailyCounts?.[d]) || 0; });
       ws.addRow(row);
     });
 
@@ -493,29 +490,55 @@ app.get('/dashboard-excel', async (req, res) => {
   }
 });
 
-// Replace image (content only; URL/filename 유지)
-app.post('/replace-image', upload.single('image'), (req, res) => {
+// 삭제
+app.delete('/image/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const idx = images.findIndex(img => img.id === id);
+    if (idx === -1) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
+
+    const filePath = path.join(UPLOADS_DIR, images[idx].filename);
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch (err) { console.error('Error deleting image file:', err); }
+    }
+    images.splice(idx, 1);
+    persistImages();
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('이미지 삭제 오류:', e);
+    res.status(500).json({ error: '이미지 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
+// 교체(파일 내용만 덮어쓰기, URL/파일명 유지)
+app.post('/replace-image', uploadMem.single('image'), (req, res) => {
   try {
     const id = req.body.id;
     if (!id || !req.file) return res.json({ success: false, error: 'ID 또는 파일 누락' });
+
     const target = images.find(img => img.id === id);
     if (!target) return res.json({ success: false, error: '이미지 ID 불일치' });
 
     const imagePath = path.join(UPLOADS_DIR, target.filename);
-    fs.writeFileSync(imagePath, req.file.buffer); // overwrite contents only
+    fs.writeFileSync(imagePath, req.file.buffer);  // 기존 파일 내용만 교체
+
+    // 캐시 즉시 반영을 원하면: 파일 변경 시각이 달라지므로 ETag/Last-Modified는 변경됨.
+    // 프런트에서 캐시 무력화를 원하면, /image/:id?ts=... 형태로 요청하시길 권장.
+
     res.json({ success: true, newUrl: target.url });
   } catch (err) {
     res.json({ success: false, error: err.message });
   }
 });
 
-// ---- Error handler ---------------------------------------------------------
+// 에러 핸들러
 app.use((err, req, res, next) => {
   console.error('[Error middleware]', err);
   res.status(500).json({ error: err.message || '서버 오류가 발생했습니다.' });
 });
 
-// ---- Start -----------------------------------------------------------------
+// Start
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[boot] listening on ${PORT}`);
   console.log(`[boot] DATA_DIR=${DATA_DIR}`);
