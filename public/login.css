@@ -2,146 +2,119 @@
    HWASEON – Login (Unified)
    ========================= */
 
-/* Tokens */
+/* ===== Tokens ===== */
 :root{
-    --bg:#f6f8fb; --panel:#ffffff;
-    --ink:#0f172a; --ink-2:#334155; --muted:#64748b;
-    --line:#e6eaf2; --brand:#111827; --accent:#2563eb;
-    --shadow:0 10px 30px rgba(15,23,42,.06);
-    --radius:14px; --radius-sm:10px;
-  }
-  
-  /* Base */
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body.login-body{
-    margin:0; color:var(--ink); background:var(--bg);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-    display:grid; place-items:center; padding:24px;
-  }
-  .hidden{display:none!important}
-  
-  /* Card */
-  .login-container{
-    width:100%; max-width:420px;
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
-    padding:22px 22px 24px;
-  }
-  .login-container h1{
-    margin:0 0 14px;
-    font-size:24px; line-height:1.2; font-weight:800; color:var(--brand);
-    letter-spacing:-.012em; text-align:center;
-  }
-  
-  /* Tabs (segmented) */
-  .login-tabs{
-    display:flex; gap:8px;
-    background:#f8fafc;
-    border:1px solid var(--line);
-    border-radius:12px;
-    padding:6px;
-    margin-bottom:16px;
-  }
-  .login-tab{
-    flex:1; height:40px;
-    display:flex; align-items:center; justify-content:center;
-    border-radius:10px; cursor:pointer;
-    color:var(--ink-2); font-weight:700;
-    transition:background .18s ease, color .18s ease, box-shadow .18s ease;
-  }
-  .login-tab:hover{ background:#eef2f8 }
-  .login-tab.active{
-    background:#111827; color:#fff;
-    box-shadow:0 6px 16px rgba(2,6,23,.12);
-  }
-  
-  /* Form */
-  form{margin:0}
-  form.hidden{display:none!important}
-  
-  .login-form-group{ margin-bottom:12px }
-  .login-form-group label{
-    display:block; margin:6px 0 6px; color:var(--ink-2); font-weight:700; font-size:14px;
-  }
-  .login-form-group input{
-    width:100%; height:46px; padding:0 14px; font-size:15px;
-    background:#fff; color:var(--ink);
-    border:1px solid var(--line); border-radius:10px;
-    transition:box-shadow .18s ease, border-color .18s ease;
-  }
-  .login-form-group input:focus{
-    outline:none; border-color:#d7dfee;
-    box-shadow:0 0 0 4px rgba(37,99,235,.08);
-  }
-  
-  /* Button */
-  .login-btn{
-    width:100%; height:44px;
-    border:1px solid #111827; border-radius:10px;
-    background:#111827; color:#fff; font-weight:800; cursor:pointer;
-    transition:background .18s ease, transform .02s ease, box-shadow .18s ease;
-    box-shadow:0 6px 16px rgba(2,6,23,.10);
-  }
-  .login-btn:hover{ background:#0b1220 }
-  .login-btn:active{ transform:translateY(1px) }
-  .login-btn:disabled{ opacity:.6; cursor:not-allowed }
-  
-  /* Error */
-  .error-message{
-    display:none;
-    margin-top:12px; padding:10px 12px;
-    color:#b52a37; background:#fff3f3;
-    border:1px solid #ffd9de; border-radius:10px; font-size:14px; text-align:center;
-  }
-  
-  /* Links */
-  .login-links{ margin-top:14px; text-align:center; font-size:14px }
-  .login-links a{ color:var(--accent); font-weight:700; text-decoration:none }
-  .login-links a:hover{ text-decoration:underline }
-  
-  /* Small */
-  @media (max-width:380px){
-    .login-container{ padding:18px }
-    .login-tabs{ padding:5px }
-    .login-tab{ height:38px; font-size:14px }
-  }
-  
+  --bg:#f6f8fb; --panel:#ffffff;
+  --ink:#0f172a; --ink-2:#334155; --muted:#64748b;
+  --line:#e6eaf2; --brand:#111827; --accent:#2563eb;
+  --shadow:0 10px 30px rgba(15,23,42,.06);
+  --radius:14px; --radius-sm:10px;
+}
 
-/* 로고만 상단, 타이틀 제거한 간격 보정 */
+/* ===== Base ===== */
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body.login-body{
+  margin:0; color:var(--ink); background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  display:grid; place-items:center; padding:24px;
+}
+.hidden{ display:none!important; }
+
+/* ===== Card / Brand ===== */
 .login-container{
-    padding: 26px 22px 24px; /* 위 살짝만 */
-  }
-  
-  .login-brand{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    margin-bottom: 16px;     /* 로고 아래 여백 */
-    text-decoration:none;
-  }
-  .login-brand__logo{
-    height:34px;
-    width:auto;
-    display:block;
-    object-fit:contain;
-  }
-  
-  /* 타이틀 제거했으니 관련 스타일 무력화 (있다면) */
-  .login-title{ display:none !important; }
-  
-  /* 탭-폼 간격 조금 넉넉하게 */
-  .login-tabs{ margin-bottom: 18px; }
-  
-  /* 버튼-에러/하단여백 정돈 */
-  .login-btn{ margin-top: 4px; }
-  .login-links{ display:none !important; } /* 홈으로 돌아가기 숨김 */
-  
-  /* 작은 화면 최적화 */
-  @media (max-width:380px){
-    .login-brand__logo{ height:30px; }
-  }
-  
+  width:100%; max-width:380px;             /* 가로 ↓ */
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:32px 20px 30px;                  /* 세로 ↑ */
+}
+.login-container h1{
+  margin:0 0 14px;
+  font-size:24px; line-height:1.2; font-weight:800; color:var(--brand);
+  letter-spacing:-.012em; text-align:center;
+}
+
+.login-brand{
+  display:flex; justify-content:center; align-items:center;
+  margin-bottom:22px; text-decoration:none;
+}
+.login-brand__logo{
+  height:34px; width:auto; display:block; object-fit:contain;
+}
+
+/* ===== Tabs (segmented) ===== */
+.login-tabs{
+  display:flex; gap:8px; padding:8px;     /* 여백 ↑ */
+  margin-bottom:35px;                      /* 간격 ↑ */
+  background:#f8fafc; border:1px solid var(--line);
+  border-radius:12px;
+}
+.login-tab{
+  flex:1; height:42px;                     /* 높이 ↑ */
+  display:flex; align-items:center; justify-content:center;
+  border-radius:10px; cursor:pointer;
+  color:var(--ink-2); font-weight:700;
+  transition:background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.login-tab:hover{ background:#eef2f8; }
+.login-tab.active{
+  background:#111827; color:#fff;
+  box-shadow:0 6px 16px rgba(2,6,23,.12);
+}
+
+/* ===== Form ===== */
+form{ margin:0; }
+form.hidden{ display:none!important; }
+
+.login-form-group{ margin-bottom:12px; }   /* 간격 ↑ */
+.login-form-group label{
+  display:block; margin:8px 0 6px;
+  color:var(--ink-2); font-weight:700; font-size:14px;
+}
+.login-form-group input{
+  width:100%; height:50px;                 /* 높이 ↑ */
+  padding:0 14px; font-size:15px;
+  background:#fff; color:var(--ink);
+  border:1px solid var(--line); border-radius:10px;
+  transition:box-shadow .18s ease, border-color .18s ease;
+}
+.login-form-group input:focus{
+  outline:none; border-color:#d7dfee;
+  box-shadow:0 0 0 4px rgba(37,99,235,.08);
+}
+
+/* ===== Button ===== */
+.login-btn{
+  width:100%; height:48px;        
+  margin-top:27px;         /* 높이 ↑ */
+  border:1px solid #111827; border-radius:10px;
+  background:#111827; color:#fff; font-weight:800; cursor:pointer;
+  transition:background .18s ease, transform .02s ease, box-shadow .18s ease;
+  box-shadow:0 8px 18px rgba(2,6,23,.12);
+}
+.login-btn:hover{ background:#0b1220; }
+.login-btn:active{ transform:translateY(1px); }
+.login-btn:disabled{ opacity:.6; cursor:not-allowed; }
+
+/* ===== Error ===== */
+.error-message{
+  display:none; margin-top:12px; padding:10px 12px;
+  color:#b52a37; background:#fff3f3;
+  border:1px solid #ffd9de; border-radius:10px; font-size:14px; text-align:center;
+}
+
+/* ===== Links ===== */
+.login-links{ margin-top:14px; text-align:center; font-size:14px; }
+.login-links a{ color:var(--accent); font-weight:700; text-decoration:none; }
+.login-links a:hover{ text-decoration:underline; }
+
+/* ===== Small (mobile) ===== */
+@media (max-width:380px){
+  .login-container{ max-width:94%; padding:28px 16px 26px; }
+  .login-tab{ height:40px; }
+  .login-form-group input{ height:48px; }
+  .login-btn{ height:46px; }
+}

@@ -185,7 +185,7 @@ function renderCompactResult({ mount, imageUrl, items }) {
 
   function flash(el){
     const old = el.textContent;
-    el.textContent = '복사됨';
+    el.textContent = '✅';
     setTimeout(() => el.textContent = old, 900);
   }
 }
@@ -195,10 +195,14 @@ function renderCompactResult({ mount, imageUrl, items }) {
  *  대시보드 페이지(dashboard.html)
  *  - 목록/썸네일/메모/소유자/복사/삭제/자세히 보기/이미지 교체
  *  - 엑셀 다운로드
+ *  - 모든 인라인 스타일 제거, CSS 클래스로 이관
  * ======================================================= */
 (function initDashboardPage(){
   const tbody = $('#dashboard-tbody');
   if (!tbody) return;
+
+  // ✅ 방금 클릭한 썸네일의 이미지 ID를 기억
+  let currentImgId = null;
 
   (async function init(){
     try {
@@ -253,72 +257,109 @@ function renderCompactResult({ mount, imageUrl, items }) {
 
   function renderRows(data){
     if (!Array.isArray(data) || data.length===0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="padding:28px;">데이터가 없습니다.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="padding:28px;">데이터가 없습니다.</td></tr>`;
       return;
     }
+    const changeBtn = $('#img-change-btn');
+  if (changeBtn) {
+    changeBtn.onclick = ()=>{
+      if (!currentImgId) { alert('대상 이미지를 찾을 수 없습니다.'); return; }
+      const input = $(`#file-${currentImgId}`);
+      if (!input) { alert('파일 선택기를 찾을 수 없습니다.'); return; }
+
+      // 기존 코드와 동일하게: 선택하면 replaceImage(id) 호출
+      input.onchange = ()=> replaceImage(currentImgId);
+      input.click();
+    };
+  }
+
+  // (선택) 모달 닫기 버튼
+  const closeBtn = $('#img-close-btn');
+  if (closeBtn) {
+    closeBtn.onclick = ()=>{
+      const wrap = $('#img-modal'), img = $('#img-modal-img');
+      if (img)  img.src = '';
+      if (wrap) wrap.classList.add('hidden');
+    };
+  }
+    
+  
     tbody.innerHTML = data.map((img, idx)=>{
-      const imgUrl  = img.url || `/image/${img.id}`;
-      const imgId   = (img.url ? img.url.split('/').pop() : img.id);
-      const fullUrl = `${location.origin}${imgUrl}`;
-      const thumbUrl= `/image/${imgId}?dashboard=1`;
-
+      const imgUrl   = img.url || `/image/${img.id}`;
+      const imgId    = (img.url ? img.url.split('/').pop() : img.id);
+      const fullUrl  = `${location.origin}${imgUrl}`;
+      const thumbUrl = `/image/${imgId}?dashboard=1`;
+  
       // 대표 블로그 링크
-      let mainReferer = '-';
-      if (Array.isArray(img.referers) && img.referers.length) {
+      let blogHref = '';
+      if (Array.isArray(img.referers) && img.referers.length){
         const real = img.referers.filter(r=>isRealBlogPost(r.referer));
-        if (real.length) {
-          const href = real[0].referer;
-          mainReferer = `<a class="dashboard-blog-link" href="${href}" target="_blank" title="${href}">${href}</a>`;
-        }
+        if (real.length) blogHref = real[0].referer;
       }
-
-      // 소유자 셀
-      let ownerCell = '-';
-      if (img.owner) {
-        ownerCell = img.owner === 'admin'
-          ? `<span style="color:#19c37d;font-weight:700;letter-spacing:.5px;">${img.owner}</span>`
-          : `<span style="color:#222;font-weight:500;letter-spacing:.5px;">${img.owner}</span>`;
-      }
-
+  
       return `
         <tr data-id="${imgId}">
           <td>
             <img src="${thumbUrl}" alt="img" class="dashboard-img-thumb" id="thumb-${imgId}" data-img-url="${thumbUrl}">
             <br>
             <input type="file" id="file-${imgId}" style="display:none">
-            <button class="dashboard-btn-blue" data-change="${imgId}" style="margin-top:6px;">변경</button>
+            
           </td>
-          <td>
-            <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
-            <a class="dashboard-url-link" href="${fullUrl}" target="_blank" title="${fullUrl}">${fullUrl}</a>
+  
+          <!-- ✅ URL 스택: 1) 이미지 URL  2) 블로그 URL(있으면) -->
+          <td class="td-urlstack">
+            <div class="url-row">
+              <button class="dashboard-copy-btn" data-url="${fullUrl}">복사</button>
+              <a class="dashboard-url-link" href="${fullUrl}" target="_blank" title="${fullUrl}">${fullUrl}</a>
+            </div>
+            <div class="url-row">
+              ${
+                blogHref
+                  ? `<button class="dashboard-copy-btn" data-url="${blogHref}">복사</button>
+                     <a class="dashboard-blog-link" href="${blogHref}" target="_blank" title="${blogHref}">${blogHref}</a>`
+                  : `<span class="url-empty">-</span>`
+              }
+            </div>
           </td>
-          <td>${mainReferer}</td>
+  
           <td class="memo-td">${escapeHtml(img.memo || '-')}</td>
-          <td>${ownerCell}</td>
           <td><button class="dashboard-btn-blue" data-detail="${idx}">보기</button></td>
-          <td><button class="dashboard-btn-red" data-del="${imgId}">삭제</button></td>
+          <td><button class="dashboard-btn-red"  data-del="${imgId}">삭제</button></td>
         </tr>`;
     }).join('');
-
-    // 복사
+  
+        // 복사 버튼 이벤트 연결
     $$('.dashboard-copy-btn', tbody).forEach(btn=>{
-      btn.onclick = ()=> copyText(btn.getAttribute('data-url'));
+      btn.onclick = ()=>{
+        const url = btn.getAttribute('data-url');
+        if (!url) return;
+        copyText(url);  // 이미 정의된 copyText 함수 사용
+        btn.textContent = '✅';
+        setTimeout(()=> btn.textContent = '복사', 1000);
+      };
     });
+
     // 삭제
     $$('.dashboard-btn-red', tbody).forEach(btn=>{
       btn.onclick = async ()=>{
         const id = btn.getAttribute('data-del');
         if (!id) return;
         if (!confirm('정말 삭제하시겠습니까?')) return;
-        try { 
+        try{
           const r = await j(`/image/${id}`, { method:'DELETE' });
           if (r?.success) btn.closest('tr')?.remove();
-        } catch { alert('삭제 실패'); }
+        }catch{ alert('삭제 실패'); }
       };
     });
     // 썸네일 미리보기
     $$('.dashboard-img-thumb', tbody).forEach(imgEl=>{
-      imgEl.onclick = ()=> openImagePreview(imgEl.dataset.imgUrl);
+      imgEl.onclick = ()=>{
+        // id="thumb-<이미지ID>" 형식이므로 뒷부분만 추출
+        const m = (imgEl.id || '').match(/^thumb-(.+)$/);
+        currentImgId = m ? m[1] : null;
+    
+        openImagePreview(imgEl.dataset.imgUrl);
+      };
     });
     // 이미지 교체
     $$('.dashboard-btn-blue[data-change]', tbody).forEach(btn=>{
@@ -334,6 +375,7 @@ function renderCompactResult({ mount, imageUrl, items }) {
       btn.onclick = ()=> openDetail(data[Number(btn.getAttribute('data-detail'))]);
     });
   }
+  
 
   // 이미지 교체 (POST /replace-image)
   window.replaceImage = async function(imgId){
@@ -380,7 +422,7 @@ function renderCompactResult({ mount, imageUrl, items }) {
 
       const ipRows = (detail.ips||[]).map(x=>{
         const ipv4 = (x.ip||'').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
-        return `<tr><td class="ip-cell">${ipv4?ipv4[0]:x.ip||''}</td><td style="text-align:left;">${escapeHtml(x.ua||'-')}</td><td>${x.count||0}</td></tr>`;
+        return `<tr><td class="ip-cell">${ipv4?ipv4[0]:x.ip||''}</td><td class="text-left">${escapeHtml(x.ua||'-')}</td><td>${x.count||0}</td></tr>`;
       }).join('');
       const ipTable = `
         <div class="modal-table-wrap">
@@ -397,9 +439,9 @@ function renderCompactResult({ mount, imageUrl, items }) {
         ${statBlock}
         ${blogBlock}
         ${ipTable}
-        <div style="text-align:right;padding:0 28px;">
-          <button id="showDaily" class="dashboard-btn-blue" style="height:32px;min-width:96px;">방문일자</button>
-          <button id="downloadDetail" class="dashboard-btn-blue" style="height:32px;min-width:120px;background:#19c37d;">엑셀 다운로드</button>
+        <div class="modal-actions">
+          <button id="showDaily" class="dashboard-btn-blue btn-32 btn-w-96">방문일자</button>
+          <button id="downloadDetail" class="dashboard-btn-blue btn-32 btn-w-120 btn-success">엑셀 다운로드</button>
         </div>
       `;
       modal.classList.remove('hidden');
@@ -456,22 +498,32 @@ function renderCompactResult({ mount, imageUrl, items }) {
   }
 })();
 
+
 /** =========================================================
  *  로그인 페이지(login.html) - login-body
  *  - 사용자/관리자 탭 전환, 로그인 처리, 엔터키 제출
+ *  - ✅ 어떤 계정이든 로그인 성공 시 항상 index.html로 이동
  * ======================================================= */
 (function initLoginPage(){
   const isLoginPage = document.body && document.body.classList.contains('login-body');
   if (!isLoginPage) return;
 
-  const userTab        = $('#userTab');
-  const adminTab       = '#adminTab' ? $('#adminTab') : null;
-  const userLoginForm  = $('#userLoginForm');
-  const adminLoginForm = $('#adminLoginForm');
-  const errorMessage   = $('#errorMessage');
+  const userTab        = document.getElementById('userTab');
+  const adminTab       = document.getElementById('adminTab');
+  const userLoginForm  = document.getElementById('userLoginForm');
+  const adminLoginForm = document.getElementById('adminLoginForm');
+  const errorMessage   = document.getElementById('errorMessage');
 
-  const showError = (msg)=>{ if (errorMessage){ errorMessage.textContent=msg; errorMessage.style.display='block'; } };
-  const hideError = ()=>{ if (errorMessage){ errorMessage.style.display='none'; errorMessage.textContent=''; } };
+  const showError = (msg)=>{
+    if (!errorMessage) return;
+    errorMessage.textContent = msg;
+    errorMessage.style.display = 'block';
+  };
+  const hideError = ()=>{
+    if (!errorMessage) return;
+    errorMessage.style.display = 'none';
+    errorMessage.textContent = '';
+  };
 
   // 탭 전환
   if (userTab && adminTab && userLoginForm && adminLoginForm) {
@@ -495,35 +547,60 @@ function renderCompactResult({ mount, imageUrl, items }) {
   if (userLoginForm) {
     userLoginForm.onsubmit = async (e) => {
       e.preventDefault(); hideError();
-      const id = ($('#username')?.value || '').trim();
-      const pw = $('#password')?.value || '';
+      const id = (document.getElementById('username')?.value || '').trim();
+      const pw = document.getElementById('password')?.value || '';
       if (!id || !pw) return showError('아이디와 비밀번호를 모두 입력해주세요.');
+
       try {
-        const res  = await fetch('/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id, pw }), credentials:'include' });
+        const res  = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ id, pw }),
+          credentials: 'include'
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '로그인 실패');
-        location.href = 'dashboard.html';
-      } catch (err) { showError(err.message); }
+
+        // ✅ 어떤 계정이든 로그인 성공 후 항상 첫 페이지로 이동
+        location.href = 'index.html';
+      } catch (err) {
+        showError(err.message || '로그인 실패');
+      }
     };
-    $('#password')?.addEventListener('keypress', (e)=>{ if (e.key==='Enter') userLoginForm.dispatchEvent(new Event('submit')); });
+    document.getElementById('password')?.addEventListener('keypress', (e)=>{
+      if (e.key === 'Enter') userLoginForm.dispatchEvent(new Event('submit'));
+    });
   }
 
   // 관리자 로그인
   if (adminLoginForm) {
     adminLoginForm.onsubmit = async (e) => {
       e.preventDefault(); hideError();
-      const pw = $('#adminPassword')?.value || '';
+      const pw = document.getElementById('adminPassword')?.value || '';
       if (!pw) return showError('관리자 비밀번호를 입력해주세요.');
+
       try {
-        const res  = await fetch('/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id:'hwaseon', pw }), credentials:'include' });
+        const res  = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ id: 'hwaseon', pw }),
+          credentials: 'include'
+        });
         const data = await res.json();
         if (!res.ok || data.role !== 'admin') throw new Error(data.error || '관리자 로그인 실패');
-        location.href = 'register.html';
-      } catch (err) { showError(err.message); }
+
+        // ✅ 관리자도 예외 없이 첫 페이지로 이동
+        location.href = 'index.html';
+      } catch (err) {
+        showError(err.message || '관리자 로그인 실패');
+      }
     };
-    $('#adminPassword')?.addEventListener('keypress', (e)=>{ if (e.key==='Enter') adminLoginForm.dispatchEvent(new Event('submit')); });
+    document.getElementById('adminPassword')?.addEventListener('keypress', (e)=>{
+      if (e.key === 'Enter') adminLoginForm.dispatchEvent(new Event('submit'));
+    });
   }
 })();
+
 
 /** =========================================================
  *  다중 URL 페이지(multi-memo.html)
@@ -703,7 +780,7 @@ function renderCompactResult({ mount, imageUrl, items }) {
         if (!urls.length) return;
         await navigator.clipboard.writeText(urls.join('\n'));
         const old = btn.textContent;
-        btn.textContent = '복사됨';
+        btn.textContent = '✅';
         setTimeout(() => (btn.textContent = old), 900);
       });
     })();
@@ -848,21 +925,7 @@ function renderCompactResult({ mount, imageUrl, items }) {
       usersTableBody.appendChild(tr);
     });
 
-    // 초기화 → 새 비번 수신 후 캐시/렌더
-    usersTableBody.querySelectorAll('[data-reset]').forEach(btn=>{
-      btn.onclick = async ()=>{
-        const id = btn.getAttribute('data-reset');
-        if (!confirm(`'${id}'의 비밀번호를 초기화할까요?`)) return;
-        try{
-          const data = await getJSON(`/users/${encodeURIComponent(id)}/password`, { method:'PUT' });
-          const newPw = data.newPassword || data.password || data.pw;
-          if (!newPw) throw new Error('서버가 새 비밀번호를 반환하지 않았습니다.');
-          pwCache.set(id, newPw);
-          savePwCache(pwCache);
-          await loadUsers();
-        }catch(e){ alert(e.message||'비밀번호 초기화 실패'); }
-      };
-    });
+    
 
     // 보기/숨김 + 복사
     usersTableBody.querySelectorAll('.pw-wrap').forEach(wrap=>{
@@ -932,3 +995,225 @@ function renderCompactResult({ mount, imageUrl, items }) {
 })();
 
 
+// ===== Topbar 로그인 상태 토글 & Dashboard 가드 =====
+(function topbarAuthAndGuard(){
+  const authLink = document.getElementById('authLink');
+  const navDash  = document.getElementById('navDashboard');
+
+  // 로그인 상태 확인 → 버튼 토글
+  if (authLink) {
+    j('/me').then(me => {
+      // 로그인 상태
+      authLink.textContent = 'Logout';
+      authLink.href = '#';
+      authLink.onclick = async (e) => {
+        e.preventDefault();
+        try { await j('/logout', { method:'POST' }); }
+        finally { location.href = 'login.html'; }
+      };
+    }).catch(() => {
+      // 비로그인 상태
+      authLink.textContent = 'Login';
+      authLink.href = 'login.html';
+      authLink.onclick = null;
+    });
+  }
+
+  // Dashboard 링크 클릭 시 로그인 가드 (비로그인 → 로그인 페이지로)
+  if (navDash) {
+    navDash.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await j('/me'); location.href = 'dashboard.html'; }
+      catch { location.href = 'login.html'; }
+    });
+  }
+})();
+
+
+// ===== Topbar: 로그인 상태 반영 + 대시보드 접근 가드 =====
+(function initTopbar(){
+  const dashLink = document.getElementById('navDashboard');
+  const authLink = document.getElementById('authLink');
+
+  // 로그인 여부 확인 → Login/Logout 토글
+  j('/me')
+    .then(me => {
+      // 로그인 상태: Logout으로 전환
+      if (authLink) {
+        authLink.textContent = 'Logout';
+        authLink.href = '#';
+        authLink.onclick = async (e) => {
+          e.preventDefault();
+          try { await j('/logout', { method: 'POST' }); } catch {}
+          location.href = 'index.html'; // 로그아웃 후 첫 페이지로
+        };
+      }
+    })
+    .catch(() => {
+      // 미로그인 상태: Login 유지
+      if (authLink) {
+        authLink.textContent = 'Login';
+        authLink.href = 'login.html';
+        authLink.onclick = null;
+      }
+    });
+
+  // Dashboard 클릭 시 로그인 필수
+  if (dashLink) {
+    dashLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        await j('/me');                // 세션 OK면
+        location.href = 'dashboard.html';
+      } catch {
+        location.href = 'login.html';  // 미로그인 → 로그인 페이지로
+      }
+    });
+  }
+})();
+
+
+// ===== Topbar: 로그인 상태 반영 + 메뉴 가드 =====
+(function initTopbar(){
+  const userLink = document.getElementById('navUser');
+  const dashLink = document.getElementById('navDashboard');
+  const authLink = document.getElementById('authLink');
+
+  // 로그인 여부 확인 → Login/Logout 토글
+  j('/me')
+    .then(me => {
+      // 로그인 상태: Logout으로 전환
+      if (authLink) {
+        authLink.textContent = 'Logout';
+        authLink.href = '#';
+        authLink.onclick = async (e) => {
+          e.preventDefault();
+          try { await j('/logout', { method: 'POST' }); } catch {}
+          location.href = 'index.html';      // 로그아웃 후 항상 첫 페이지
+        };
+      }
+    })
+    .catch(() => {
+      // 미로그인 상태: Login 유지
+      if (authLink) {
+        authLink.textContent = 'Login';
+        authLink.href = 'login.html';
+        authLink.onclick = null;
+      }
+    });
+
+  // Dashboard: 로그인 필수
+  if (dashLink) {
+    dashLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        await j('/me');                      // 세션 OK
+        location.href = 'dashboard.html';
+      } catch {
+        location.href = 'login.html';        // 미로그인 → 로그인 페이지
+      }
+    });
+  }
+
+    // User(사용자 등록): 로그인 + 관리자만
+  if (userLink) {
+    userLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        const me = await j('/me');                 // 로그인 확인
+        if (me.role === 'admin') {
+          location.href = 'register.html';         // 관리자면 접근 OK
+        } else {
+          alert('관리자만 접근할 수 있습니다.');
+        }
+      } catch {
+        // ✅ 미로그인인 경우: 먼저 안내 → 로그인 페이지로
+        location.href = 'login.html';
+      }
+    });
+  }
+
+/** =========================================================
+ *  헤더 네비 상태/동작
+ *  - 로그인 여부/역할에 따라 링크 동작/표시 제어
+ *  - 로그인한 ID 뱃지 표시
+ *  - Dashboard: 미로그인 → login.html / 로그인 → dashboard.html
+ *  - User: 관리자만 진입, 그 외엔 경고 + 로그인 유도
+ *  - Auth: Login ↔ Logout 토글, Logout 시 index.html
+ * ======================================================= */
+(function initHeaderNav(){
+  const dashLink = document.getElementById('dashboardLink');
+  const userLink = document.getElementById('userLink');
+  const authLink = document.getElementById('authLink');
+  const whoami   = document.getElementById('whoami');
+
+  if (!dashLink && !userLink && !authLink && !whoami) return; // 헤더 없는 페이지
+
+  // 공통: ID 배지 숨김 헬퍼
+  const hideWho = () => { if (whoami){ whoami.textContent=''; whoami.style.display='none'; } };
+  const showWho = (id) => { if (whoami){ whoami.textContent = id || ''; whoami.style.display = id ? '' : 'none'; } };
+
+  // 미로그인용 동작
+  function wireAsGuest(){
+    hideWho();
+    if (authLink){
+      authLink.textContent = 'Login';
+      authLink.onclick = null;
+      authLink.setAttribute('href','login.html');
+    }
+    if (dashLink){
+      dashLink.onclick = (e)=>{ e.preventDefault(); location.href='login.html'; };
+    }
+    if (userLink){
+      userLink.onclick = (e)=>{
+        e.preventDefault();
+        alert('관리자로 로그인해야 접근할 수 있습니다.');
+        location.href = 'login.html';
+      };
+    }
+  }
+
+  // 로그인/역할별 동작
+  function wireAsUser(me){
+    showWho(me?.id);
+
+    // Auth → Logout
+    if (authLink){
+      authLink.textContent = 'Logout';
+      authLink.setAttribute('href','#');
+      authLink.onclick = async (e)=>{
+        e.preventDefault();
+        try { await j('/logout', { method:'POST' }); } catch {}
+        // 로그아웃 후 항상 첫 페이지
+        location.href = 'index.html';
+      };
+    }
+
+    // Dashboard → 대시보드로
+    if (dashLink){
+      dashLink.onclick = (e)=>{ e.preventDefault(); location.href='dashboard.html'; };
+    }
+
+    // User → 관리자만 register.html, 그 외엔 경고
+    if (userLink){
+      userLink.onclick = (e)=>{
+        e.preventDefault();
+        if (me?.role === 'admin') location.href = 'register.html';
+        else alert('관리자만 접근할 수 있습니다.');
+      };
+    }
+  }
+
+    // 세션 확인 후 배선
+    (async ()=>{
+      try {
+        const me = await j('/me');         // { id, role }
+        if (!me?.id) return wireAsGuest();
+        wireAsUser(me);
+      } catch {
+        wireAsGuest();
+      }
+    })();
+  })();
+
+})();

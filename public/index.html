@@ -13,15 +13,17 @@
   <header class="site-header">
     <div class="site-header__inner container">
       <a class="brand" href="index.html" aria-label="Hwaseon 홈">
-        <!-- 로고 파일 위치만 맞춰주세요. 파일명이 'hwaseon로고.png'라면 그대로 사용 -->
         <img src="hwaseon로고.png" alt="Hwaseon" class="brand__logo" />
       </a>
       <nav class="site-nav">
-        <a href="dashboard.html">Dashboard</a>
-        <a href="login.html">Login</a>
+        <a id="userLink" href="register.html">User</a>
+        <a id="dashboardLink" href="dashboard.html">Dashboard</a>
+        <span id="whoami" class="nav-id" aria-live="polite"></span>
+        <a id="authLink" href="login.html">Login</a>
       </nav>
     </div>
   </header>
+  
 
   <!-- 메인 -->
   <main class="container section">

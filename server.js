@@ -1,135 +1,119 @@
+/* server.js — Hwaseon Image Host (Render /data persistent disk)
+ * - Express + Session(FileStore@/data/sessions)
+ * - Public static: ./public
+ * - Image upload: memory → /data/uploads/<id>.<ext>
+ * - Metadata: /data/images.json, /data/users.json
+ * - Health check: /healthz (200)
+ * - Bind: 0.0.0.0 with PORT from env
+ */
+
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const path   = require('path');
+const fs     = require('fs');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const ExcelJS = require('exceljs');
-const app = express();
+
+const app  = express();
 const PORT = process.env.PORT || 3000;
-
-
-const DATA_DIR = '/data';
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const IMAGES_FILE = path.join(DATA_DIR, 'images.json');
 const MAX_DAILY_TRAFFIC = 1500;
 
-
-
-// 정적 파일 제공
-app.use(express.static('public'));
-app.use(express.json());
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    next();
-});
-
-
-// 세션 설정
-app.use(session({
-    secret: 'your-secret-key',
-    resave: false,
-    saveUninitialized: true,
-    store: new FileStore({
-        path: path.join(DATA_DIR, 'sessions'),
-        ttl: 24 * 60 * 60,
-        reapInterval: 60 * 60,
-        retries: 0
-    }),
-    cookie: { 
-        secure: false,
-        maxAge: 24 * 60 * 60 * 1000 // 24시간
-    }
-}));
-
-// 파일에서 데이터 불러오기/저장 함수
+// ---- Utilities -------------------------------------------------------------
+function ensureDir(p) {
+  try { fs.mkdirSync(p, { recursive: true }); } catch (_) {}
+}
+function isWritable(dir) {
+  try {
+    const t = path.join(dir, '.rwtest');
+    fs.writeFileSync(t, 'ok');
+    fs.unlinkSync(t);
+    return true;
+  } catch (_) { return false; }
+}
 function loadJson(file, fallback) {
   try {
-    if (fs.existsSync(file)) {
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
-    }
-  } catch (e) { console.error('loadJson error:', e); }
+    if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) { console.error('[loadJson]', e); }
+  try { fs.writeFileSync(file, JSON.stringify(fallback, null, 2)); } catch (_) {}
   return fallback;
 }
 function saveJson(file, data) {
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-  } catch (e) { console.error('saveJson error:', e); }
+  try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+  catch (e) { console.error('[saveJson]', e); }
 }
 
+// ---- Data dirs (prefer /data; fallback to ./data if not writable) ----------
+let DATA_DIR = '/data';
+if (!isWritable(DATA_DIR)) {
+  console.warn('[boot] /data not writable. Falling back to ./data (non-persistent).');
+  DATA_DIR = path.join(__dirname, 'data');
+}
+const USERS_FILE   = path.join(DATA_DIR, 'users.json');
+const IMAGES_FILE  = path.join(DATA_DIR, 'images.json');
+const UPLOADS_DIR  = path.join(DATA_DIR, 'uploads');
+const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 
+ensureDir(DATA_DIR);
+ensureDir(UPLOADS_DIR);
+ensureDir(SESSIONS_DIR);
 
-// 1. users, images 불러오기
-let users = loadJson(USERS_FILE, []);
+// ---- App basics ------------------------------------------------------------
+app.set('trust proxy', 1); // Render behind proxy
+app.use(express.static('public'));
+app.use(express.json());
+
+// Very open CORS (이미지 핫링크용)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*'); // 필요 시 도메인 제한 고려
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
+// ---- Sessions --------------------------------------------------------------
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: true,
+  store: new FileStore({
+    path: SESSIONS_DIR,
+    ttl: 24 * 60 * 60,
+    reapInterval: 60 * 60,
+    retries: 0
+  }),
+  cookie: {
+    secure: false,               // Render: HTTPS 종단 앞단이라면 true 고려
+    maxAge: 24 * 60 * 60 * 1000  // 24h
+  }
+}));
+
+// ---- In-memory state (backed by /data json) --------------------------------
+let users  = loadJson(USERS_FILE, []);
 let images = loadJson(IMAGES_FILE, []);
-// 2. 관리자 계정 없으면 추가
+
+// Ensure admin
 if (!users.some(u => u.id === 'admin')) {
   users.unshift({ id: 'admin', pw: 'hwaseon@00', role: 'admin', createdAt: new Date().toISOString() });
   saveJson(USERS_FILE, users);
 }
-// 3. users, images 변경시마다 저장 함수
-function persistUsers() { saveJson(USERS_FILE, users); }
+function persistUsers()  { saveJson(USERS_FILE, users); }
 function persistImages() { saveJson(IMAGES_FILE, images); }
 
-// uploads 디렉토리가 없으면 생성
-const uploadsDir = path.join('/data', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      const dir = path.join(__dirname, 'public/uploads');
-      fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-      const id = req.body.id;
-      const ext = path.extname(file.originalname);
-      cb(null, `${id}${ext}`); // 항상 동일한 파일명
-    }
-  });
-
-
-
-// 이미지 파일 필터링
-const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('지원하지 않는 이미지 형식입니다.'), false);
-    }
-  };
-  
-  // 메모리에 저장 (파일 직접 덮어쓸 거라 디스크에 쓸 필요 없음)
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  });
-
-
-
-// 네이버 블로그 본문 URL만 남기는 함수 (글 작성폼, 홈 등은 false)
+// ---- Helpers for referer filtering -----------------------------------------
 function isRealBlogPost(url) {
-    if (!url) return false;
-    // /아이디/숫자 또는 /PostView.naver?blogId=...&logNo=... 형식 모두 허용
-    return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/\d+|PostView\.naver\?blogId=[^&]+&logNo=\d+)/.test(url);
+  if (!url) return false;
+  return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/\d+|PostView\.naver\?blogId=[^&]+&logNo=\d+)/.test(url);
 }
-
 function isNaverBlogReferer(url) {
   if (!url) return false;
-  // 네이버 블로그 도메인에서 온 요청
   if (!/^https?:\/\/(blog|m\.blog)\.naver\.com\//.test(url)) return false;
-  // 글쓰기/작성폼/홈/관리 등은 제외
-  if (
-    /PostWriteForm\.naver/.test(url) || // 글쓰기 폼
-    /\/home([/?#]|$)/.test(url) ||      // 홈
-    /\/section([/?#]|$)/.test(url) ||   // 섹션
-    /\/dashboard([/?#]|$)/.test(url)    // 대시보드/관리
-  ) return false;
+  if (/PostWriteForm\.naver/.test(url)) return false;
+  if (/\/home([/?#]|$)/.test(url)) return false;
+  if (/\/section([/?#]|$)/.test(url)) return false;
+  if (/\/dashboard([/?#]|$)/.test(url)) return false;
   return true;
 }
 function isMySiteReferer(url) {
@@ -137,574 +121,404 @@ function isMySiteReferer(url) {
   return /hwaseon-image\.com|onrender\.com/.test(url);
 }
 
+// ---- Multer (memory) -------------------------------------------------------
+const upload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg','image/png','image/webp','image/gif'].includes(file.mimetype);
+    cb(ok ? null : new Error('지원하지 않는 이미지 형식입니다.'), ok);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+});
 
-// 이미지 업로드 라우트
+// ---- Routes ----------------------------------------------------------------
+
+// Health check (Render)
+app.get('/healthz', (_, res) => res.status(200).send('ok'));
+
+// Login pages
+app.get('/login', (req, res) => res.redirect('/login.html'));
+
+// Auth APIs
+app.post('/login', (req, res) => {
+  try {
+    const { id, pw } = req.body || {};
+    if (id === 'hwaseon' && pw === 'hwaseon@00') {
+      req.session.user = { id: 'admin', role: 'admin' };
+      return res.json({ success: true, role: 'admin' });
+    }
+    const user = users.find(u => u.id === id && u.pw === pw);
+    if (user) {
+      req.session.user = { id: user.id, role: user.role };
+      return res.json({ success: true, role: user.role });
+    }
+    res.status(401).json({ error: '비밀번호가 올바르지 않습니다.' });
+  } catch (e) {
+    console.error('Login error:', e);
+    res.status(500).json({ error: '로그인 중 오류가 발생했습니다.' });
+  }
+});
+app.post('/logout', (req, res) => {
+  try { req.session.destroy(() => res.json({ success: true })); }
+  catch (e) { console.error('Logout error:', e); res.status(500).json({ error: '로그아웃 중 오류가 발생했습니다.' }); }
+});
+app.get('/me', (req, res) => {
+  try {
+    if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+    res.json(req.session.user);
+  } catch (e) {
+    console.error('Me error:', e);
+    res.status(500).json({ error: '사용자 정보 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// Dashboard HTML (auth required)
+app.get('/dashboard', (req, res) => {
+  if (!req.session.user) return res.redirect('/login.html');
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+app.get('/dashboard.html', (req, res) => {
+  if (!req.session.user) return res.redirect('/login.html');
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Dashboard data
+app.get('/dashboard-data', (req, res) => {
+  try {
+    if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+    const data = (req.session.user.role === 'admin')
+      ? images
+      : images.filter(img => img.owner === req.session.user.id);
+    res.json(data);
+  } catch (e) {
+    console.error('Dashboard data error:', e);
+    res.status(500).json({ error: '대시보드 데이터 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// Users admin
+app.get('/users', (req, res) => {
+  try {
+    if (!req.session.user || req.session.user.role !== 'admin')
+      return res.status(403).json({ error: '권한이 없습니다.' });
+    res.json(users);
+  } catch (e) {
+    console.error('Users list error:', e);
+    res.status(500).json({ error: '사용자 목록 조회 중 오류가 발생했습니다.' });
+  }
+});
+app.post('/register', (req, res) => {
+  try {
+    const { id, pw } = req.body || {};
+    if (!id || !pw) return res.status(400).json({ error: '아이디와 비밀번호를 모두 입력해주세요.' });
+    if (users.some(u => u.id === id)) return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
+    const newUser = { id, pw, role: 'user', createdAt: new Date().toISOString() };
+    users.push(newUser);
+    persistUsers();
+    res.json({ success: true, user: newUser });
+  } catch (e) {
+    console.error('Register error:', e);
+    res.status(500).json({ error: '사용자 등록 중 오류가 발생했습니다.' });
+  }
+});
+app.delete('/users/:id', (req, res) => {
+  try {
+    if (!req.session.user || req.session.user.role !== 'admin')
+      return res.status(403).json({ error: '권한이 없습니다.' });
+    const userId = req.params.id;
+    const idx = users.findIndex(u => u.id === userId);
+    if (idx === -1) return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    if (users[idx].role === 'admin') return res.status(403).json({ error: '관리자는 삭제할 수 없습니다.' });
+    users.splice(idx, 1);
+    persistUsers();
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Delete user error:', e);
+    res.status(500).json({ error: '사용자 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
+// Upload (single or memo array -> multi entries)
 app.post('/upload', upload.single('image'), (req, res) => {
-    console.log('req.body:', req.body);
-    console.log('req.file:', req.file);
-    try {
-        if (!req.file) {
-            console.error('파일이 없습니다!');
-            return res.status(400).json({ error: '이미지 파일이 필요합니다.' });
-        }
+  try {
+    if (!req.file) return res.status(400).json({ error: '이미지 파일이 필요합니다.' });
 
-        let memo = req.body.memo;
-        const filename = req.file.filename;
-        // owner: 로그인 상태면 user.id, 아니면 null
-        const owner = req.session.user ? req.session.user.id : null;
+    const ext = (path.extname(req.file.originalname) || '').toLowerCase() || '.jpg';
+    const owner = req.session.user ? req.session.user.id : null;
 
-        if (memo === undefined || memo === null) memo = '';
+    const memos = Array.isArray(req.body.memo) ? req.body.memo : [ (req.body.memo ?? '').toString() ];
+    const urls = [];
 
-        if (Array.isArray(memo)) {
-            const urls = [];
-            const memos = [];
-            (Array.isArray(memo) ? memo : [memo]).forEach(m => {
-                const id = Date.now().toString() + Math.floor(Math.random() * 10000);
-                const url = `/image/${id}`;
-                images.push({
-                    id,
-                    filename,
-                    url,
-                    memo: m,
-                    owner,
-                    views: 0,
-                    ips: [],
-                    referers: [],
-                    createdAt: new Date().toISOString()
-                });
-                urls.push(url);
-                memos.push(m);
-            });
-            persistImages();
-            return res.json({ urls, memos });
-        } else {
-            const id = Date.now().toString();
-            const url = `/image/${id}`;
-            images.push({
-                id,
-                filename,
-                url,
-                memo: memo.toString(),
-                owner,
-                views: 0,
-                ips: [],
-                referers: [],
-                createdAt: new Date().toISOString()
-            });
-            persistImages();
-            return res.json({
-                url,
-                memo: memo.toString()
-            });
-        }
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ error: '이미지 업로드 중 오류가 발생했습니다.' });
+    for (const m of memos) {
+      const id = Date.now().toString() + Math.floor(Math.random() * 10000);
+      const filename = `${id}${ext}`;
+      const filePath = path.join(UPLOADS_DIR, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      const url = `/image/${id}`;
+      images.push({
+        id,
+        filename,
+        url,
+        memo: (m ?? '').toString(),
+        owner,
+        views: 0,
+        ips: [],
+        referers: [],
+        createdAt: new Date().toISOString()
+      });
+      urls.push(url);
     }
-});
-
-// OPTIONS 요청 처리
-app.options('/image/:id', (req, res) => {
-    res.set({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Referer, User-Agent',
-        'Access-Control-Max-Age': '86400'
-    });
-    res.status(204).end();
-});
-
-
-// 이미지 제공 라우트
-app.get('/image/:id', async (req, res) => {
-    const id = req.params.id.replace(/\.[^/.]+$/, '');
-
-    console.log('Image request:', {
-        originalId: req.params.id,
-        cleanedId: id,
-        referer: req.headers['referer'],
-        userAgent: req.headers['user-agent'],
-        origin: req.headers['origin'],
-        host: req.headers['host']
-    });
-
-    const img = images.find(i => i.id === id);
-    if (!img) {
-        console.log('Image not found:', id);
-        return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
-    }
-
-    // 하루 트래픽 제한 (3,000회)
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (!img.todayDate || img.todayDate !== todayStr) {
-        img.todayDate = todayStr;
-        img.todayCount = 0;
-    }
-    if ((img.todayCount || 0) >= MAX_DAILY_TRAFFIC) {
-        return res.status(429).json({ error: '하루 트래픽(1,500회) 초과' });
-    }
-    img.todayCount = (img.todayCount || 0) + 1;
-
-    const filePath = path.join('/data', 'uploads', img.filename);
-    if (!fs.existsSync(filePath)) {
-        console.log('File not found:', filePath);
-        return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
-    }
-
-    const referer = req.headers['referer'] || '';
-    const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
-    const ua = req.headers['user-agent'] || '';
-    const now = new Date();
-
-    // 기본 속성 초기화
-    img.views ??= 0;
-    if (!Array.isArray(img.ips)) img.ips = [];
-    if (!Array.isArray(img.referers)) img.referers = [];
-
-    // 네이버 블로그에서만 조회수 및 방문자 기록
-    if (isNaverBlogReferer(referer) && !isMySiteReferer(referer)) {
-        img.views += 1;
-        // 접속로그(IP+UA별 방문수 누적)
-        let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
-        if (!ipInfo) {
-            img.ips.push({
-                ip,
-                ua,
-                count: 1,
-                visits: [{ time: now.toISOString() }]
-            });
-        } else {
-            ipInfo.count++;
-            if (!Array.isArray(ipInfo.visits)) ipInfo.visits = [];
-            ipInfo.visits.push({ time: now.toISOString() });
-        }
-        // 리퍼러 로그 기록
-        const existing = img.referers.find(r => r.referer === referer);
-        if (existing) {
-            existing.count = (existing.count || 0) + 1;
-        } else {
-            img.referers.push({
-                referer,
-                count: 1
-            });
-        }
-    }
-
     persistImages();
 
-    // Content-Type 설정
-    const ext = path.extname(img.filename).toLowerCase();
-    let contentType = 'application/octet-stream';
-    if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-    else if (ext === '.png') contentType = 'image/png';
-    else if (ext === '.gif') contentType = 'image/gif';
-    else if (ext === '.webp') contentType = 'image/webp';
-
-    res.set('Content-Type', contentType);
-    res.sendFile(filePath);
+    if (urls.length === 1) return res.json({ url: urls[0], memo: memos[0] ?? '' });
+    return res.json({ urls, memos });
+  } catch (e) {
+    console.error('Upload error:', e);
+    res.status(500).json({ error: '이미지 업로드 중 오류가 발생했습니다.' });
+  }
 });
 
-
-
-// 이미지 상세 정보 반환 라우트
-app.get('/image/:id/detail', (req, res) => {
-    try {
-        const img = images.find(i => i.id === req.params.id);
-        if (!img) {
-            return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
-        }
-
-        // ✅ 조회수: img.views 그대로 사용
-        const views = img.views || 0;
-
-        // ✅ 방문 유저 수: ip+ua 조합의 개수
-        let unique = img.ips ? img.ips.length : 0;
-        if (unique > views) unique = views;
-
-        // ✅ 오늘 방문수 계산
-        const todayStr = new Date().toISOString().slice(0, 10);
-        let todayVisits = 0;
-        if (img.ips) {
-            img.ips.forEach(x => {
-                if (x.visits) {
-                    todayVisits += x.visits.filter(v => v.time.slice(0, 10) === todayStr).length;
-                }
-            });
-        }
-
-        // ✅ 가장 많이 불러간 블로그 referer (없으면 첫 번째)
-        let blogUrl = null, blogCreated = null;
-        if (img.referers && img.referers.length > 0) {
-            const sorted = img.referers.slice().sort((a, b) =>
-                b.count - a.count
-            );
-            blogUrl = sorted[0].referer;
-            blogCreated = sorted[0].createdAt;
-        }
-
-        // ✅ IP + UA + 방문수 정리
-        const ips = (img.ips || []).map(x => ({
-            ip: x.ip,
-            ua: x.ua,
-            count: x.count,
-            visits: x.visits || [] // 방문 시각 배열 추가
-        }));
-
-        res.json({
-            id: img.id,
-            filename: img.filename,
-            blogUrl,
-            blogCreated,
-            views,         // ✅ 서버 내 카운트된 조회수 기준
-            todayVisits,   // 오늘 총 방문 수
-            ips,
-            referers: img.referers || []
-        });
-    } catch (error) {
-        console.error('상세 정보 조회 오류:', error);
-        res.status(500).json({ error: '상세 정보 조회 중 오류가 발생했습니다.' });
-    }
-});
-
-
-// 이미지별 일자별 방문수 집계 API
-app.get('/image/:id/daily-visits', (req, res) => {
-    try {
-        const img = images.find(i => i.id === req.params.id);
-        if (!img) {
-            return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
-        }
-        // 날짜별 방문수 집계
-        const dailyMap = {};
-        (img.ips || []).forEach(ipinfo => {
-            (ipinfo.visits || []).forEach(v => {
-                const date = v.time.slice(0, 10); // YYYY-MM-DD
-                dailyMap[date] = (dailyMap[date] || 0) + 1;
-            });
-        });
-        // 날짜 오름차순 정렬
-        const dailyVisits = Object.entries(dailyMap)
-            .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-        res.json({
-            id: img.id,
-            dailyVisits
-        });
-    } catch (error) {
-        console.error('일자별 방문수 조회 오류:', error);
-        res.status(500).json({ error: '일자별 방문수 조회 중 오류가 발생했습니다.' });
-    }
-});
-
-
-// 로그인 페이지 라우트
-app.get('/login', (req, res) => {
-    res.redirect('/login.html');
-});
-
-
-// 로그인 라우트
-app.post('/login', (req, res) => {
-    try {
-        const { id, pw } = req.body;
-        // 관리자 로그인
-        if (id === 'hwaseon' && pw === 'hwaseon@00') {
-            req.session.user = { id: 'admin', role: 'admin' };
-            return res.json({ success: true, role: 'admin' });
-        }
-        // 일반 사용자 로그인
-        const user = users.find(u => u.id === id && u.pw === pw);
-        if (user) {
-            req.session.user = { id: user.id, role: user.role };
-            return res.json({ success: true, role: user.role });
-        }
-        res.status(401).json({ error: '비밀번호가 올바르지 않습니다.' });
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: '로그인 중 오류가 발생했습니다.' });
-    }
-});
-
-// 로그아웃 라우트
-app.post('/logout', (req, res) => {
-    try {
-        req.session.destroy();
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Logout error:', error);
-        res.status(500).json({ error: '로그아웃 중 오류가 발생했습니다.' });
-    }
-});
-
-// 사용자 정보 조회 라우트
-app.get('/me', (req, res) => {
-    try {
-        if (!req.session.user) {
-            return res.status(401).json({ error: 'Not authenticated' });
-        }
-        res.json(req.session.user);
-    } catch (error) {
-        console.error('Me error:', error);
-        res.status(500).json({ error: '사용자 정보 조회 중 오류가 발생했습니다.' });
-    }
-});
-
-// 대시보드 데이터 라우트
-app.get('/dashboard-data', (req, res) => {
-    try {
-        if (!req.session.user) {
-            return res.status(401).json({ error: 'Not authenticated' });
-        }
-        // 관리자: 전체(소유자 없는 것도), 일반 사용자: 본인만
-        if (req.session.user.role === 'admin') {
-            return res.json(images);
-        } else {
-            return res.json(images.filter(img => img.owner === req.session.user.id));
-        }
-    } catch (error) {
-        console.error('Dashboard data error:', error);
-        res.status(500).json({ error: '대시보드 데이터 조회 중 오류가 발생했습니다.' });
-    }
-});
-
-
-// 대시보드 페이지 - 인증 필요
-app.get('/dashboard', (req, res) => {
-    if (!req.session.user) {
-        return res.redirect('/login.html');
-    }
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-
-
-// 대시보드 페이지 (기존 경로도 유지)
-app.get('/dashboard.html', (req, res) => {
-    if (!req.session.user) {
-        return res.redirect('/login.html');
-    }
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// 사용자 목록 조회 라우트
-app.get('/users', (req, res) => {
-    try {
-        if (!req.session.user || req.session.user.role !== 'admin') {
-            return res.status(403).json({ error: '권한이 없습니다.' });
-        }
-        res.json(users);
-    } catch (error) {
-        console.error('Users list error:', error);
-        res.status(500).json({ error: '사용자 목록 조회 중 오류가 발생했습니다.' });
-    }
-});
-
-
-
-// 사용자 등록 라우트
-app.post('/register', (req, res) => {
-    try {
-        const { id, pw } = req.body;
-        // 필수 필드 검증
-        if (!id || !pw) {
-            return res.status(400).json({ error: '아이디와 비밀번호를 모두 입력해주세요.' });
-        }
-        // 아이디 중복 검사
-        if (users.some(user => user.id === id)) {
-            return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
-        }
-        // 새 사용자 추가
-        const newUser = {
-            id,
-            pw, // 비밀번호 저장
-            role: 'user',
-            createdAt: new Date().toISOString()
-        };
-        users.push(newUser);
-        persistUsers();
-        res.json({ success: true, user: newUser });
-    } catch (error) {
-        console.error('Register error:', error);
-        res.status(500).json({ error: '사용자 등록 중 오류가 발생했습니다.' });
-    }
-});
-
-// 사용자 삭제 라우트
-app.delete('/users/:id', (req, res) => {
-    try {
-        if (!req.session.user || req.session.user.role !== 'admin') {
-            return res.status(403).json({ error: '권한이 없습니다.' });
-        }
-
-        const userId = req.params.id;
-        const userIndex = users.findIndex(user => user.id === userId);
-
-        if (userIndex === -1) {
-            return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
-        }
-
-        // 관리자는 삭제할 수 없음
-        if (users[userIndex].role === 'admin') {
-            return res.status(403).json({ error: '관리자는 삭제할 수 없습니다.' });
-        }
-
-        users.splice(userIndex, 1);
-        persistUsers();
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Delete user error:', error);
-        res.status(500).json({ error: '사용자 삭제 중 오류가 발생했습니다.' });
-    }
-});
-
-
-
-app.delete('/image/:id', (req, res) => {
-    try {
-        const id = req.params.id;
-        console.log('Deleting image:', id);
-        
-        const idx = images.findIndex(img => img.id === id);
-        if (idx === -1) {
-            console.log('Image not found for deletion:', id);
-            return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
-        }
-
-        // 파일 삭제
-        const filePath = path.join('/data', 'uploads', images[idx].filename);
-        if (fs.existsSync(filePath)) {
-            try {
-                fs.unlinkSync(filePath);
-                console.log('Image file deleted:', filePath);
-            } catch (err) {
-                console.error('Error deleting image file:', err);
-            }
-        } else {
-            console.log('Image file not found:', filePath);
-        }
-
-        // 메타데이터 삭제
-        images.splice(idx, 1);
-        
-        // 변경사항 저장
-        persistImages();
-        console.log('Image metadata deleted and persisted');
-
-        res.json({ success: true });
-    } catch (error) {
-        console.error('이미지 삭제 오류:', error);
-        res.status(500).json({ error: '이미지 삭제 중 오류가 발생했습니다.' });
-    }
-});
-
-// 대시보드 데이터 엑셀 다운로드
-app.get('/dashboard-excel', async (req, res) => {
-    try {
-        if (!req.session.user) {
-            return res.status(401).json({ error: 'Not authenticated' });
-        }
-        const filteredImages = req.session.user.role === 'admin'
-            ? images
-            : images.filter(img => img.owner === req.session.user.id);
-        // 1. 모든 날짜 수집
-        const allDatesSet = new Set();
-        filteredImages.forEach(img => {
-            (img.ips || []).forEach(ipinfo => {
-                (ipinfo.visits || []).forEach(v => {
-                    if (v.time) allDatesSet.add(v.time.slice(0, 10));
-                });
-            });
-        });
-        const allDates = Array.from(allDatesSet).sort((a, b) => b.localeCompare(a)); // 내림차순(최신이 앞으로)
-        // 2. 워크북/시트 생성
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Dashboard');
-        // 3. 컬럼 정의
-        const baseColumns = [
-            { header: '이미지 링크', key: 'image', width: 40 },
-            { header: '블로그 URL', key: 'blog', width: 40 },
-            { header: '메모', key: 'memo', width: 30 },
-            { header: '총 방문수', key: 'views', width: 12 }
-        ];
-        const dateColumns = allDates.map(date => ({ header: date, key: `date_${date}`, width: 12 }));
-        worksheet.columns = [...baseColumns, ...dateColumns];
-        // 4. 데이터 행 추가
-        filteredImages.forEach(img => {
-            // 실제 블로그 글 주소만 추출
-            let blogUrl = '-';
-            if (img.referers && img.referers.length > 0) {
-                const real = img.referers.find(r => isRealBlogPost(r.referer));
-                blogUrl = real ? real.referer : '-';
-            }
-            // 날짜별 방문수 집계
-            const dailyMap = {};
-            (img.ips || []).forEach(ipinfo => {
-                (ipinfo.visits || []).forEach(v => {
-                    const date = v.time ? v.time.slice(0, 10) : null;
-                    if (date) dailyMap[date] = (dailyMap[date] || 0) + 1;
-                });
-            });
-            // 행 데이터
-            const row = {
-                image: `https://hwaseon-image.com/image/${img.id}`,
-                blog: blogUrl,
-                memo: img.memo || '',
-                views: img.views || 0
-            };
-            allDates.forEach(date => {
-                row[`date_${date}`] = dailyMap[date] || 0;
-            });
-            worksheet.addRow(row);
-        });
-        worksheet.getRow(1).font = { bold: true };
-        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename=dashboard_data.xlsx');
-        await workbook.xlsx.write(res);
-        res.end();
-    } catch (error) {
-        console.error('Excel download error:', error);
-        res.status(500).json({ error: '엑셀 다운로드 중 오류가 발생했습니다.' });
-    }
-});
-
-
-
-app.post('/replace-image', upload.single('image'), (req, res) => {
-    const id = req.body.id;
-    const file = req.file;
-  
-    if (!id || !file) {
-      return res.json({ success: false, error: 'ID 또는 파일 누락' });
-    }
-  
-    try {
-      const images = JSON.parse(fs.readFileSync(IMAGES_FILE, 'utf-8'));
-      const target = images.find(img => img.id === id);
-  
-      if (!target) {
-        return res.json({ success: false, error: '이미지 ID 불일치' });
-      }
-  
-      const imagePath = path.join(DATA_DIR, 'uploads', target.filename);
-      fs.writeFileSync(imagePath, file.buffer);  // 기존 이미지 덮어쓰기
-  
-      res.json({ success: true, newUrl: target.url });
-    } catch (err) {
-      res.json({ success: false, error: err.message });
-    }
+// Image (CORS preflight handled globally)
+app.get('/image/:id', (req, res) => {
+  const id = (req.params.id || '').replace(/\.[^/.]+$/,''); // tolerate .jpg suffix
+  console.log('Image request:', {
+    originalId: req.params.id,
+    cleanedId: id,
+    referer: req.headers['referer'],
+    userAgent: req.headers['user-agent'],
+    origin: req.headers['origin'],
+    host: req.headers['host']
   });
-  
 
+  const img = images.find(i => i.id === id);
+  if (!img) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Uploads directory: ${uploadsDir}`);
+  const todayStr = new Date().toISOString().slice(0,10);
+  if (!img.todayDate || img.todayDate !== todayStr) { img.todayDate = todayStr; img.todayCount = 0; }
+  if ((img.todayCount || 0) >= MAX_DAILY_TRAFFIC) {
+    return res.status(429).json({ error: '하루 트래픽(1,500회) 초과' });
+  }
+  img.todayCount = (img.todayCount || 0) + 1;
+
+  const filePath = path.join(UPLOADS_DIR, img.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: '이미지 파일을 찾을 수 없습니다.' });
+
+  const referer = req.headers['referer'] || '';
+  const ip = (req.headers['x-forwarded-for'] || req.connection?.remoteAddress || '').split(',')[0].trim();
+  const ua = req.headers['user-agent'] || '';
+  const now = new Date();
+
+  img.views ??= 0;
+  if (!Array.isArray(img.ips)) img.ips = [];
+  if (!Array.isArray(img.referers)) img.referers = [];
+
+  if (isNaverBlogReferer(referer) && !isMySiteReferer(referer)) {
+    img.views += 1;
+
+    let ipInfo = img.ips.find(x => x.ip === ip && x.ua === ua);
+    if (!ipInfo) {
+      img.ips.push({ ip, ua, count: 1, visits: [{ time: now.toISOString() }] });
+    } else {
+      ipInfo.count = (ipInfo.count || 0) + 1;
+      if (!Array.isArray(ipInfo.visits)) ipInfo.visits = [];
+      ipInfo.visits.push({ time: now.toISOString() });
+    }
+
+    const existing = img.referers.find(r => r.referer === referer);
+    if (existing) existing.count = (existing.count || 0) + 1;
+    else img.referers.push({ referer, count: 1, createdAt: now.toISOString() });
+  }
+
+  persistImages();
+
+  const ext = path.extname(img.filename).toLowerCase();
+  const map = { '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.gif':'image/gif', '.webp':'image/webp' };
+  res.set('Content-Type', map[ext] || 'application/octet-stream');
+  res.sendFile(filePath);
 });
 
+// Image detail
+app.get('/image/:id/detail', (req, res) => {
+  try {
+    const img = images.find(i => i.id === req.params.id);
+    if (!img) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
 
-// 에러 핸들링 미들웨어 (모든 라우트 정의 이후에 위치)
+    const views = img.views || 0;
+
+    let unique = img.ips ? img.ips.length : 0;
+    if (unique > views) unique = views;
+
+    const todayStr = new Date().toISOString().slice(0,10);
+    let todayVisits = 0;
+    (img.ips || []).forEach(x => {
+      (x.visits || []).forEach(v => {
+        if (v.time && v.time.slice(0,10) === todayStr) todayVisits += 1;
+      });
+    });
+
+    let blogUrl = null, blogCreated = null;
+    if (img.referers && img.referers.length > 0) {
+      const sorted = img.referers.slice().sort((a,b) => (b.count || 0) - (a.count || 0));
+      blogUrl = sorted[0].referer;
+      blogCreated = sorted[0].createdAt;
+    }
+
+    const ips = (img.ips || []).map(x => ({
+      ip: x.ip, ua: x.ua, count: x.count, visits: x.visits || []
+    }));
+
+    res.json({
+      id: img.id,
+      filename: img.filename,
+      blogUrl,
+      blogCreated,
+      views,
+      todayVisits,
+      ips,
+      referers: img.referers || []
+    });
+  } catch (e) {
+    console.error('상세 정보 조회 오류:', e);
+    res.status(500).json({ error: '상세 정보 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// Daily visits
+app.get('/image/:id/daily-visits', (req, res) => {
+  try {
+    const img = images.find(i => i.id === req.params.id);
+    if (!img) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
+
+    const dailyMap = {};
+    (img.ips || []).forEach(ipinfo => {
+      (ipinfo.visits || []).forEach(v => {
+        const date = v.time ? v.time.slice(0,10) : null;
+        if (date) dailyMap[date] = (dailyMap[date] || 0) + 1;
+      });
+    });
+    const dailyVisits = Object.entries(dailyMap)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a,b) => a.date.localeCompare(b.date));
+
+    res.json({ id: img.id, dailyVisits });
+  } catch (e) {
+    console.error('일자별 방문수 조회 오류:', e);
+    res.status(500).json({ error: '일자별 방문수 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// Delete image (file + metadata)
+app.delete('/image/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const idx = images.findIndex(img => img.id === id);
+    if (idx === -1) return res.status(404).json({ error: '이미지를 찾을 수 없습니다.' });
+
+    const filePath = path.join(UPLOADS_DIR, images[idx].filename);
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); }
+      catch (err) { console.error('Error deleting image file:', err); }
+    }
+    images.splice(idx, 1);
+    persistImages();
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('이미지 삭제 오류:', e);
+    res.status(500).json({ error: '이미지 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
+// Excel export (dashboard)
+app.get('/dashboard-excel', async (req, res) => {
+  try {
+    if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+
+    const filtered = (req.session.user.role === 'admin') ? images : images.filter(i => i.owner === req.session.user.id);
+
+    const allDatesSet = new Set();
+    filtered.forEach(img => {
+      (img.ips || []).forEach(ipinfo => {
+        (ipinfo.visits || []).forEach(v => { if (v.time) allDatesSet.add(v.time.slice(0,10)); });
+      });
+    });
+    const allDates = Array.from(allDatesSet).sort((a,b) => b.localeCompare(a)); // desc
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Dashboard');
+
+    const baseColumns = [
+      { header: '이미지 링크', key: 'image', width: 40 },
+      { header: '블로그 URL', key: 'blog', width: 40 },
+      { header: '메모', key: 'memo', width: 30 },
+      { header: '총 방문수', key: 'views', width: 12 }
+    ];
+    const dateColumns = allDates.map(d => ({ header: d, key: `date_${d}`, width: 12 }));
+    ws.columns = [...baseColumns, ...dateColumns];
+
+    filtered.forEach(img => {
+      let blogUrl = '-';
+      if (img.referers && img.referers.length > 0) {
+        const real = img.referers.find(r => isRealBlogPost(r.referer));
+        blogUrl = real ? real.referer : '-';
+      }
+      const dailyMap = {};
+      (img.ips || []).forEach(ipinfo => {
+        (ipinfo.visits || []).forEach(v => {
+          const date = v.time ? v.time.slice(0,10) : null;
+          if (date) dailyMap[date] = (dailyMap[date] || 0) + 1;
+        });
+      });
+      const row = {
+        image: `${req.protocol}://${req.get('host')}/image/${img.id}`,
+        blog: blogUrl,
+        memo: img.memo || '',
+        views: img.views || 0
+      };
+      allDates.forEach(d => { row[`date_${d}`] = dailyMap[d] || 0; });
+      ws.addRow(row);
+    });
+
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition','attachment; filename=dashboard_data.xlsx');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('Excel download error:', e);
+    res.status(500).json({ error: '엑셀 다운로드 중 오류가 발생했습니다.' });
+  }
+});
+
+// Replace image (content only; URL/filename 유지)
+app.post('/replace-image', upload.single('image'), (req, res) => {
+  try {
+    const id = req.body.id;
+    if (!id || !req.file) return res.json({ success: false, error: 'ID 또는 파일 누락' });
+    const target = images.find(img => img.id === id);
+    if (!target) return res.json({ success: false, error: '이미지 ID 불일치' });
+
+    const imagePath = path.join(UPLOADS_DIR, target.filename);
+    fs.writeFileSync(imagePath, req.file.buffer); // overwrite contents only
+    res.json({ success: true, newUrl: target.url });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// ---- Error handler ---------------------------------------------------------
 app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(500).json({ error: err.message || '서버 오류가 발생했습니다.' });
+  console.error('[Error middleware]', err);
+  res.status(500).json({ error: err.message || '서버 오류가 발생했습니다.' });
+});
+
+// ---- Start -----------------------------------------------------------------
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[boot] listening on ${PORT}`);
+  console.log(`[boot] DATA_DIR=${DATA_DIR}`);
+  console.log(`[boot] UPLOADS_DIR=${UPLOADS_DIR}`);
+  console.log(`[boot] SESSIONS_DIR=${SESSIONS_DIR}`);
 });

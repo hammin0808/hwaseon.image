@@ -8,20 +8,16 @@
 <body class="admin-body">
 
   <!-- Topbar -->
-  <!-- Topbar -->
-  <header class="site-top">
-    <div class="site-top__inner">
-      <a class="brand-link" href="index.html" aria-label="Hwaseon Home">
-        <img
-          src="hwaseon로고.png"
-          srcset="hwaseon로고.png 1x, hwaseon로고@2x.png 2x"
-          alt="HWASEON"
-          class="brand-logo"
-        />
+  <header class="site-header">
+    <div class="site-header__inner container">
+      <a class="brand" href="index.html" aria-label="Hwaseon 홈">
+        <img src="hwaseon로고.png" alt="Hwaseon" class="brand__logo" />
       </a>
-      <nav class="top-nav">
-        <a href="dashboard.html">Dashboard</a>
-        <a href="#" id="logoutLink">Logout</a>
+      <nav class="site-nav">
+        <a id="userLink" href="register.html">User</a>
+        <a id="dashboardLink" href="dashboard.html">Dashboard</a>
+        <span id="whoami" class="nav-id" aria-live="polite"></span>
+        <a id="authLink" href="login.html">Login</a>
       </nav>
     </div>
   </header>
@@ -31,14 +27,12 @@
   <div class="admin-container">
     <!-- 등록 카드 -->
     <div class="form-container">
-      <h2>새 사용자 등록</h2>
+      <h2>Create Account</h2>
       <form id="createUserForm">
-        <div class="form-group">
-          <label for="newUsername">아이디</label>
+        <div class="form-group1">
           <input type="text" id="newUsername" placeholder="사용자 아이디를 입력하세요" required />
         </div>
-        <div class="form-group">
-          <label for="newPassword">비밀번호</label>
+        <div class="form-group2">
           <input type="password" id="newPassword" placeholder="비밀번호를 입력하세요" required />
         </div>
         <button type="submit" class="submit-btn">사용자 생성</button>
@@ -47,8 +41,7 @@
     </div>
 
     <!-- 목록 카드 -->
-    <div class="form-container" style="margin-top:0;">
-      <h2>사용자 목록</h2>
+    <div class="form-container users-compact" style="margin-top:0;">
       <div class="users-table-wrap">
         <div class="users-table-scroll">
           <table class="users-table">

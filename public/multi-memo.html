@@ -8,15 +8,17 @@
 </head>
 <body>
 
-  <!-- 상단 헤더 (index와 동일 톤) -->
+  <!-- 헤더 -->
   <header class="site-header">
     <div class="site-header__inner container">
-      <a href="index.html" class="brand-link" aria-label="HWASEON">
-        <img src="hwaseon로고.png" alt="HWASEON" class="brand-logo" />
+      <a class="brand" href="index.html" aria-label="Hwaseon 홈">
+        <img src="hwaseon로고.png" alt="Hwaseon" class="brand__logo" />
       </a>
       <nav class="site-nav">
-        <a href="dashboard.html">Dashboard</a>
-        <a href="login.html">Login</a>
+        <a id="userLink" href="register.html">User</a>
+        <a id="dashboardLink" href="dashboard.html">Dashboard</a>
+        <span id="whoami" class="nav-id" aria-live="polite"></span>
+        <a id="authLink" href="login.html">Login</a>
       </nav>
     </div>
   </header>
