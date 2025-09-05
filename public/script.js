@@ -256,22 +256,19 @@ function renderCompactResult({ mount, imageUrl, items }) {
   })();
 
   function renderRows(data){
-    if (!Array.isArray(data) || data.length===0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="padding:28px;">데이터가 없습니다.</td></tr>`;
-      return;
-    }
+    
     const changeBtn = $('#img-change-btn');
-  if (changeBtn) {
-    changeBtn.onclick = ()=>{
-      if (!currentImgId) { alert('대상 이미지를 찾을 수 없습니다.'); return; }
-      const input = $(`#file-${currentImgId}`);
-      if (!input) { alert('파일 선택기를 찾을 수 없습니다.'); return; }
+    if (changeBtn) {
+      changeBtn.onclick = ()=>{
+        if (!currentImgId) { alert('대상 이미지를 찾을 수 없습니다.'); return; }
+        const input = $(`#file-${currentImgId}`);
+        if (!input) { alert('파일 선택기를 찾을 수 없습니다.'); return; }
 
-      // 기존 코드와 동일하게: 선택하면 replaceImage(id) 호출
-      input.onchange = ()=> replaceImage(currentImgId);
-      input.click();
-    };
-  }
+        // 기존 코드와 동일하게: 선택하면 replaceImage(id) 호출
+        input.onchange = ()=> replaceImage(currentImgId);
+        input.click();
+      };
+    }
 
   // (선택) 모달 닫기 버튼
   const closeBtn = $('#img-close-btn');
