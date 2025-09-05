@@ -30,6 +30,9 @@ const MAX_REFERERS      = 100;                    // referer의 상한
 const MAX_DAYS_KEEP     = 180;                    // 일자 집계 보존일수
 const MAX_UPLOAD_MB     = 5;                      // 업로드 제한(MB)
 
+const MAX_VISITORS = 300;          // 이미지별 IP×UA 엔트리 상한
+const MAX_VISITS_PER_VISITOR = 10; // 각 방문자에 저장할 최근 시각 상한
+
 // ---- 부팅 가드(디렉토리/파일) ----------------------------------------------
 function ensureDir(p) { try { fs.mkdirSync(p, { recursive: true }); } catch(_){} }
 function loadJson(file, fallback) {
@@ -90,12 +93,9 @@ function persistImages() { saveJson(IMAGES_FILE, images); }
 
 // ---- 레거시 -> 집계형 마이그레이션 -----------------------------------------
 function migrateLegacyImage(img) {
-  // dailyCounts 생성
   if (!img.dailyCounts) img.dailyCounts = {};
-  // topReferers 생성
   if (!img.topReferers) img.topReferers = {};
 
-  // 1) legacy visits로부터 dailyCounts 집계
   if (Array.isArray(img.ips)) {
     for (const entry of img.ips) {
       const visits = Array.isArray(entry?.visits) ? entry.visits : [];
@@ -108,7 +108,6 @@ function migrateLegacyImage(img) {
       }
     }
   }
-  // 2) legacy referers -> topReferers
   if (Array.isArray(img.referers)) {
     for (const r of img.referers) {
       const url = r?.referer;
@@ -118,28 +117,23 @@ function migrateLegacyImage(img) {
       }
     }
   }
-  // 3) referer 상한
   const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
   if (entries.length > MAX_REFERERS) {
     img.topReferers = Object.fromEntries(entries.slice(0, MAX_REFERERS));
   }
-  // 4) 오래된 일자 정리
   const days = Object.keys(img.dailyCounts).sort(); // asc
   if (days.length > MAX_DAYS_KEEP) {
     const cut = days.length - MAX_DAYS_KEEP;
     for (let i=0;i<cut;i++) delete img.dailyCounts[days[i]];
   }
-  // 5) legacy 필드 제거
   delete img.ips;
   delete img.referers;
-
   return img;
 }
-// 1회 마이그레이션 수행
 let migrated = false;
 for (let i=0;i<images.length;i++) {
   const img = images[i];
-  if (img && (img.ips || img.referers)) { // 레거시 존재 시 변환
+  if (img && (img.ips || img.referers)) {
     images[i] = migrateLegacyImage(img);
     migrated = true;
   }
@@ -330,13 +324,37 @@ app.get('/image/:id', (req, res) => {
   const referer = req.headers['referer'] || '';
   // 통계: 네이버 블로그만 카운트(자체/렌더 도메인은 제외)
   if (isNaverBlogReferer(referer) && !isMySiteReferer(referer)) {
+
+    // ----- 방문자(IP+UA) 로그: 상한 유지 -----
+    const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
+    const ua = req.headers['user-agent'] || '';
+    const now = new Date();
+
+    const key = `${ip}__${ua}`;
+    if (!img.visitors) img.visitors = [];
+
+    let v = img.visitors.find(x => x.key === key);
+    if (!v) {
+      if (img.visitors.length >= MAX_VISITORS) {
+        img.visitors.sort((a,b) => (new Date(a.lastAt||0)) - (new Date(b.lastAt||0)));
+        img.visitors.splice(0, Math.max(1, img.visitors.length - MAX_VISITORS + 1));
+      }
+      v = { key, ip, ua, count: 0, visits: [], lastAt: null };
+      img.visitors.push(v);
+    }
+    v.count = (v.count || 0) + 1;
+    v.lastAt = now.toISOString();
+    if (!Array.isArray(v.visits)) v.visits = [];
+    v.visits.push({ time: v.lastAt });
+    if (v.visits.length > MAX_VISITS_PER_VISITOR) {
+      v.visits.splice(0, v.visits.length - MAX_VISITS_PER_VISITOR);
+    }
+
     img.views = (img.views || 0) + 1;
 
-    // 일자 집계
     if (!img.dailyCounts) img.dailyCounts = {};
     img.dailyCounts[todayStr] = (img.dailyCounts[todayStr] || 0) + 1;
 
-    // referer 집계(+상위 N 유지)
     if (!img.topReferers) img.topReferers = {};
     img.topReferers[referer] = (img.topReferers[referer] || 0) + 1;
 
@@ -345,7 +363,6 @@ app.get('/image/:id', (req, res) => {
       img.topReferers = Object.fromEntries(entries.slice(0, MAX_REFERERS));
     }
 
-    // 오래된 일자 정리
     const days = Object.keys(img.dailyCounts).sort(); // asc
     if (days.length > MAX_DAYS_KEEP) {
       const cut = days.length - MAX_DAYS_KEEP;
@@ -376,16 +393,27 @@ app.get('/image/:id/detail', (req, res) => {
 
     const views = img.views || 0;
 
-    // 가장 많이 불러간 블로그 referer
+    // 가장 많이 불러간 블로그 referer (네이버 본문만)
     let blogUrl = null, blogCount = 0;
     if (img.topReferers && typeof img.topReferers === 'object') {
-      const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
+      const entries = Object.entries(img.topReferers)
+        .filter(([u]) => isRealBlogPost(u)) // ★ 필터링 추가
+        .sort((a,b)=>b[1]-a[1]);
       if (entries.length) { blogUrl = entries[0][0]; blogCount = entries[0][1]; }
     }
 
     // 오늘 방문수
     const todayStr = new Date().toISOString().slice(0,10);
     const todayVisits = (img.dailyCounts?.[todayStr]) || 0;
+
+    // ★ visitors 응답에 포함 (프론트에서 표 렌더)
+    const visitors = (img.visitors || []).map(x => ({
+      ip: x.ip,
+      ua: x.ua,
+      count: x.count || 0,
+      visits: Array.isArray(x.visits) ? x.visits : [],
+      lastAt: x.lastAt || null
+    }));
 
     res.json({
       id: img.id,
@@ -394,6 +422,7 @@ app.get('/image/:id/detail', (req, res) => {
       blogCount,
       views,
       todayVisits,
+      visitors,                 // ★ 추가
       dailyCounts: img.dailyCounts || {},
       topReferers: img.topReferers || {}
     });
@@ -420,19 +449,34 @@ app.get('/image/:id/daily-visits', (req, res) => {
   }
 });
 
-// 대시보드 데이터(엑셀)
+// 대시보드 데이터
 app.get('/dashboard-data', (req, res) => {
   try {
     if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
-    const data = (req.session.user.role === 'admin')
+    const base = (req.session.user.role === 'admin')
       ? images
       : images.filter(img => img.owner === req.session.user.id);
-    res.json(data);
+
+    // ★ 각 레코드에 blogUrl 필드 계산해 포함
+    const withBlog = base.map(img => {
+      let blogUrl = null;
+      if (img.topReferers && typeof img.topReferers === 'object') {
+        const best = Object.entries(img.topReferers)
+          .filter(([u]) => isRealBlogPost(u))
+          .sort((a,b)=>b[1]-a[1])[0];
+        blogUrl = best ? best[0] : null;
+      }
+      return { ...img, blogUrl };
+    });
+
+    res.json(withBlog);
   } catch (e) {
     console.error('Dashboard data error:', e);
     res.status(500).json({ error: '대시보드 데이터 조회 중 오류가 발생했습니다.' });
   }
 });
+
+// 대시보드 데이터(엑셀)
 app.get('/dashboard-excel', async (req, res) => {
   try {
     if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
@@ -461,10 +505,12 @@ app.get('/dashboard-excel', async (req, res) => {
     ws.columns = [...baseColumns, ...dateColumns];
 
     filtered.forEach(img => {
-      // 블로그 상위 1개
+      // 블로그 상위 1개 (네이버 본문만)
       let blogUrl = '-';
       if (img.topReferers && typeof img.topReferers === 'object') {
-        const entries = Object.entries(img.topReferers).sort((a,b)=>b[1]-a[1]);
+        const entries = Object.entries(img.topReferers)
+          .filter(([u]) => isRealBlogPost(u))
+          .sort((a,b)=>b[1]-a[1]);
         if (entries.length) blogUrl = entries[0][0];
       }
       const row = {
@@ -523,9 +569,7 @@ app.post('/replace-image', uploadMem.single('image'), (req, res) => {
     const imagePath = path.join(UPLOADS_DIR, target.filename);
     fs.writeFileSync(imagePath, req.file.buffer);  // 기존 파일 내용만 교체
 
-    // 캐시 즉시 반영을 원하면: 파일 변경 시각이 달라지므로 ETag/Last-Modified는 변경됨.
-    // 프런트에서 캐시 무력화를 원하면, /image/:id?ts=... 형태로 요청하시길 권장.
-
+    // 프런트에서 캐시 무력화를 원하면, /image/:id?ts=... 형태로 요청 권장.
     res.json({ success: true, newUrl: target.url });
   } catch (err) {
     res.json({ success: false, error: err.message });
