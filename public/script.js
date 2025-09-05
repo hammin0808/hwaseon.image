@@ -31,6 +31,41 @@ function isRealBlogPost(url) {
   return /^https?:\/\/(?:blog|m\.blog)\.naver\.com\/(?:[^/]+\/\d+|PostView\.naver\?blogId=[^&]+&logNo=\d+)/.test(url);
 }
 
+/** topReferers / referers 에서 네이버 본문 1순위 고르기 */
+function pickBlogUrlLite(d){
+  // 1) 서버가 직접 준 값
+  if (d.blogUrl && isRealBlogPost(d.blogUrl)) return d.blogUrl;
+
+  const tr = d.topReferers;
+
+  // 2) topReferers: 객체 { url: count }
+  if (tr && typeof tr === 'object' && !Array.isArray(tr)) {
+    const best = Object.entries(tr)
+      .sort((a,b)=>(b[1]||0)-(a[1]||0))
+      .find(([u]) => isRealBlogPost(u));
+    if (best) return best[0];
+  }
+
+  // 3) topReferers: 배열 [{ referer|url, count }]
+  if (Array.isArray(tr)) {
+    const r = [...tr]
+      .sort((a,b)=>(b?.count||0)-(a?.count||0))
+      .find(x => isRealBlogPost(x?.referer || x?.url));
+    if (r) return (r.referer || r.url);
+  }
+
+  // 4) referers: 배열 [{ referer|url, count }]
+  if (Array.isArray(d.referers)) {
+    const r = [...d.referers]
+      .sort((a,b)=>(b?.count||0)-(a?.count||0))
+      .find(x => isRealBlogPost(x?.referer || x?.url));
+    if (r) return (r.referer || r.url);
+  }
+
+  return ''; // 없으면 빈 문자열
+}
+
+
 /** =========================================================
  *  공용 액션: 이미지 미리보기 모달, 클립보드 복사
  * ======================================================= */
@@ -287,12 +322,8 @@ function renderCompactResult({ mount, imageUrl, items }) {
       const fullUrl  = `${location.origin}${imgUrl}`;
       const thumbUrl = `/image/${imgId}?dashboard=1`;
   
-      // 대표 블로그 링크
-      let blogHref = '';
-      if (Array.isArray(img.referers) && img.referers.length){
-        const real = img.referers.filter(r=>isRealBlogPost(r.referer));
-        if (real.length) blogHref = real[0].referer;
-      }
+      const blogHref = pickBlogUrlLite(img);
+
   
       return `
         <tr data-id="${imgId}">
@@ -401,103 +432,142 @@ function renderCompactResult({ mount, imageUrl, items }) {
   async function openDetail(img){
     try{
       const detail = await j(`/image/${img.id}/detail`);
-      const modal = $('#modal'), body = $('#modal-body');
-      // 모달 열기
+      const modal  = $('#modal'), body = $('#modal-body');
+  
+      // ---------- 모달 열기 & 닫기 유틸 ----------
       modal.classList.remove('hidden');
-
-      // 닫기 유틸
       const closeModal = ()=>{
         modal.classList.add('hidden');
         body.innerHTML = '';
         modal.removeEventListener('click', onOverlayClick);
         modal.removeEventListener('keydown', onKeydown);
       };
-
-      // 바깥(오버레이) 클릭 시 닫기: 클릭 타겟이 오버레이 자신일 때만 닫음
       const onOverlayClick = (e)=>{ if (e.target === modal) closeModal(); };
-      modal.addEventListener('click', onOverlayClick);
-
-      // ESC 닫기
       const onKeydown = (e)=>{ if (e.key === 'Escape') closeModal(); };
-      modal.setAttribute('tabindex','-1'); // 키보드 포커스 받게
-      modal.focus();
+      modal.addEventListener('click', onOverlayClick);
+      modal.setAttribute('tabindex','-1'); modal.focus();
       modal.addEventListener('keydown', onKeydown);
-
-
-      const blogUrl = detail.referers?.filter(r=>isRealBlogPost(r.referer))?.[0]?.referer || '-';
-      const statBlock = `
-        <div class="modal-section">
-          <div class="modal-row"><span class="modal-label">총 방문수</span><span class="modal-value">${detail.views||0}</span></div>
-          <div class="modal-row"><span class="modal-label">오늘 방문</span><span class="modal-value">${detail.todayVisits||0}</span></div>
-        </div>`;
-      const blogBlock = `
-        <div class="modal-section">
-          <div class="modal-row"><span class="modal-label">블로그 주소</span>
-          <span class="modal-value">${blogUrl==='-'?'-':`<a href="${blogUrl}" target="_blank" class="dashboard-blog-link">${blogUrl}</a>`}</span></div>
-        </div>`;
-
-      const ipRows = (detail.ips||[]).map(x=>{
+  
+      // ---------- 블로그 URL 선정(여러 케이스 지원) ----------
+      const bestBlogFromTopReferers = (top)=>{
+        if (!top || typeof top !== 'object') return null;
+        const cand = Object.entries(top).filter(([u])=>isRealBlogPost(u))
+          .sort((a,b)=>b[1]-a[1]);
+        return (cand[0] && cand[0][0]) || null;
+      };
+      const pickBlogUrl = (d)=>{
+        if (d.blogUrl) return d.blogUrl;
+        const fromTop = bestBlogFromTopReferers(d.topReferers); if (fromTop) return fromTop;
+        if (Array.isArray(d.referers)) {
+          const real = d.referers.filter(r=>isRealBlogPost(r.referer));
+          if (real.length) return real[0].referer;
+        }
+        return '-';
+      };
+      const blogUrl = pickBlogUrl(detail);
+  
+      // ---------- 접속자 리스트 정규화(ips/visitors 배열/맵 모두 지원) ----------
+      const normalizeVisitors = (d)=>{
+        if (Array.isArray(d.visitors)) return d.visitors;
+        if (Array.isArray(d.ips))      return d.ips;
+  
+        const m = (d.visitors && typeof d.visitors==='object') ? d.visitors
+                : (d.ips && typeof d.ips==='object') ? d.ips : null;
+        if (!m) return [];
+        return Object.entries(m).map(([ip,v])=>({
+          ip,
+          ua: v?.ua || v?.userAgent || '-',
+          count: Number(v?.count ?? (Array.isArray(v?.visits) ? v.visits.length : 0)) || 0,
+          visits: Array.isArray(v?.visits) ? v.visits : []
+        }));
+      };
+      const visitors = normalizeVisitors(detail).sort((a,b)=>(b.count||0)-(a.count||0));
+  
+      const ipRows = visitors.map(x=>{
         const ipv4 = (x.ip||'').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
-        return `<tr><td class="ip-cell">${ipv4?ipv4[0]:x.ip||''}</td><td class="text-left">${escapeHtml(x.ua||'-')}</td><td>${x.count||0}</td></tr>`;
+        return `<tr>
+          <td class="ip-cell">${ipv4 ? ipv4[0] : escapeHtml(x.ip||'')}</td>
+          <td class="text-left">${escapeHtml(x.ua||'-')}</td>
+          <td>${x.count||0}</td>
+        </tr>`;
       }).join('');
-      const ipTable = `
-        <div class="modal-table-wrap">
-          <table class="modal-table">
-            <thead><tr><th>IP</th><th>User-Agent</th><th>방문수</th></tr></thead>
-            <tbody>${ipRows || `<tr><td colspan="3">접속 기록 없음</td></tr>`}</tbody>
-          </table>
-        </div>`;
-
+  
+      // ---------- 본문 렌더 ----------
       body.innerHTML = `
         <div class="modal-title-row-main">
           <div class="modal-title-filename">${escapeHtml(detail.filename||'')}</div>
           <div class="modal-actions">
-          <button id="showDaily" class="dashboard-btn-blue btn-32 btn-w-96">방문일자</button>
-          <button id="downloadDetail" class="dashboard-btn-blue btn-32 btn-w-120 btn-success">엑셀 다운로드</button>
+            <button id="showDaily" class="dashboard-btn-blue btn-32 btn-w-96">방문일자</button>
+            <button id="downloadDetail" class="dashboard-btn-blue btn-32 btn-w-120 btn-success">엑셀 다운로드</button>
+          </div>
         </div>
+  
+        <div class="modal-section">
+          <div class="modal-row"><span class="modal-label">총 방문수</span><span class="modal-value">${detail.views||0}</span></div>
+          <div class="modal-row"><span class="modal-label">오늘 방문</span><span class="modal-value">${detail.todayVisits||0}</span></div>
         </div>
-        ${statBlock}
-        ${blogBlock}
-        ${ipTable}
-        
+  
+        <div class="modal-section">
+          <div class="modal-row">
+            <span class="modal-label">블로그 주소</span>
+            <span class="modal-value">${blogUrl==='-'?'-':`<a href="${blogUrl}" target="_blank" class="dashboard-blog-link">${blogUrl}</a>`}</span>
+          </div>
+        </div>
+  
+        <div class="modal-table-wrap" data-label="접속 내역">
+          <table class="modal-table">
+            <thead><tr><th>IP</th><th>User-Agent</th><th>방문수</th></tr></thead>
+            <tbody>${ipRows || `<tr><td colspan="3">접속 기록 없음</td></tr>`}</tbody>
+          </table>
+        </div>
       `;
-      modal.classList.remove('hidden');
-
-      // 방문일자 불러오기
+  
+      // ---------- 방문일자 불러오기(모달 내부 스크롤) ----------
       $('#showDaily').onclick = async ()=>{
-        try {
+        const btn = $('#showDaily');
+        try{
           const r = await j(`/image/${detail.id}/daily-visits`);
-          const rows = (r.dailyVisits||[]).map(v=>`<tr><td>${v.date}</td><td>${v.count}</td></tr>`).join('');
-          $('#modal-body').innerHTML += `
-            <div class="modal-section">
-
-              <div class="modal-table-wrap">
-                <table class="modal-table">
-                  <thead><tr><th>날짜</th><th>방문수</th></tr></thead>
-                  <tbody>${rows || `<tr><td colspan="2">일자별 방문 기록 없음</td></tr>`}</tbody>
-                </table>
-              </div>
-            </div>`;
-        } catch(e){ alert('방문일자를 불러오지 못했습니다.'); }
+          const rows = (r.dailyVisits||[])
+            .map(v=>`<tr><td>${v.date}</td><td>${v.count}</td></tr>`).join('');
+  
+          if (!document.getElementById('daily-visits-wrap')) {
+            const wrap = document.createElement('div');
+            wrap.id = 'daily-visits-wrap';
+            wrap.className = 'modal-table-wrap modal-subscroll';
+            wrap.setAttribute('data-label','일자별 방문수');
+            wrap.innerHTML = `
+              <table class="modal-table">
+                <thead><tr><th>날짜</th><th>방문수</th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="2">일자별 방문 기록 없음</td></tr>`}</tbody>
+              </table>`;
+            body.appendChild(wrap);
+          }
+          if (btn){ btn.disabled = true; btn.textContent = '불러옴'; }
+        }catch{
+          alert('방문일자를 불러오지 못했습니다.');
+        }
       };
-
-      // 엑셀 다운로드(개별)
+  
+      // ---------- 엑셀 다운로드 ----------
       $('#downloadDetail').onclick = async ()=>{
-        if (typeof XLSX === 'undefined') { alert('엑셀 라이브러리가 로드되지 않았습니다.'); return; }
+        if (typeof XLSX === 'undefined'){ alert('엑셀 라이브러리가 로드되지 않았습니다.'); return; }
         let dailyVisits = [];
-        try {
+        try{
           const r = await j(`/image/${detail.id}/daily-visits`);
           dailyVisits = r.dailyVisits || [];
-        } catch {}
-        const blog  = blogUrl || '-';
-        const total = detail.views || 0;
+        }catch{}
+  
         const dailySheet = [['블로그 링크','총 방문수','날짜','방문수'],
-          ...dailyVisits.map((row,i)=>[i? '' : blog, i? '' : total, row.date, row.count])];
+          ...dailyVisits.map((row,i)=>[i? '' : (blogUrl||'-'), i? '' : (detail.views||0), row.date, row.count])];
+  
         const userSheet = [['IP','User-Agent','유저 방문수','방문 시각(시:분:초)']];
-        (detail.ips||[]).forEach(row=>{
-          const visitTimes = (row.visits||[]).map(v=>v.time ? v.time.replace('T',' ').slice(0,19) : '').filter(Boolean).join('\n');
+        visitors.forEach(row=>{
+          const visitTimes = (row.visits||[])
+            .map(v=>v.time ? v.time.replace('T',' ').slice(0,19) : '')
+            .filter(Boolean).join('\n');
           userSheet.push([row.ip, row.ua, row.count, visitTimes]);
         });
+  
         const wb = XLSX.utils.book_new();
         const wsDaily = XLSX.utils.aoa_to_sheet(dailySheet);
         const wsUser  = XLSX.utils.aoa_to_sheet(userSheet);
@@ -508,11 +578,13 @@ function renderCompactResult({ mount, imageUrl, items }) {
         const memoSafe = (img.memo || detail.memo || '미입력').replace(/[<>:"/\\|?*]/g,'_');
         XLSX.writeFile(wb, `${memoSafe}.xlsx`);
       };
+  
     } catch (e) {
       console.error(e);
       alert('상세 정보를 불러오지 못했습니다.');
     }
   }
+  
 })();
 
 

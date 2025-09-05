@@ -357,7 +357,8 @@ body{
 
 /* ✅ 액션바: 이미지(=컨테이너) 우상단 고정 */
 .img-modal-actions{
-  position:absolute; right:8px; /* 핵심 */
+  position:absolute; right:1px; /* 핵심 */
+  margin-top:20px;
  
 }
 
